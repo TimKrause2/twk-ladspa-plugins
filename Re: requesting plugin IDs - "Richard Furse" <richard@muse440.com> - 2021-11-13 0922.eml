@@ -1,0 +1,75 @@
+X-Account-Key: account1
+X-UIDL: 37944.fdeEP4xd,zBl3UZz5kFGAk,F1KXEvhZK14YAV2WMges=
+X-Mozilla-Status: 0011
+X-Mozilla-Status2: 00000000
+X-Mozilla-Keys:                                                                                 
+Return-Path: <richard@muse440.com>
+Received: from mi06-ssvc.dcs.int.inet (LHLO mi06.dcs.int.inet)
+ (10.0.141.211) by cds241.dcs.int.inet with LMTP; Sat, 13 Nov 2021 09:22:20
+ -0700 (MST)
+Received: from shw-ibgw-4003a.ext.cloudfilter.net (lb7f8hsrpso-dmz.dcs.int.inet [10.0.120.36])
+	by mi06.dcs.int.inet (Postfix) with ESMTPS id 49AFB1280470
+	for <timwkrause@shaw.ca>; Sat, 13 Nov 2021 09:22:20 -0700 (MST)
+Received: from smtprelay.hostedemail.com ([216.40.44.209])
+	by cmsmtp with ESMTP
+	id lvnHmh1wHV9CRlvnHm14Dt; Sat, 13 Nov 2021 16:22:19 +0000
+X-SHW-ORIG-RCPT: timwkrause@shaw.ca
+X-Authority-Analysis: v=2.4 cv=Co+sz10D c=1 sm=1 tr=0 ts=618fe63b cx=a_idp_d
+ a=v24p2U+ZTE7Rnit3fwOSxQ==:117 a=IkcTkHD0fZMA:10 a=vIxV3rELxO4A:10
+ a=_Dj-zB-qAAAA:8 a=rvAZ_HBJAAAA:8 a=ykAp1EXw4Huk8iooK68A:9 a=QEXdDO2ut3YA:10
+ a=c-cOe7UV8MviEfHuAVEQ:22 a=u1L92AmWJQi6D6_09fE1:22
+Received: from omf05.hostedemail.com (clb03-v110.bra.tucows.net [216.40.38.60])
+	by smtprelay04.hostedemail.com (Postfix) with ESMTP id 1A48E180A8149
+	for <timwkrause@shaw.ca>; Sat, 13 Nov 2021 16:22:19 +0000 (UTC)
+Received: from [HIDDEN] (Authenticated sender: richard@muse440.com) by omf05.hostedemail.com (Postfix) with ESMTPA id 5EFCC5090199
+	for <timwkrause@shaw.ca>; Sat, 13 Nov 2021 16:22:17 +0000 (UTC)
+From: "Richard Furse" <richard@muse440.com>
+To: "'Timothy Krause'" <timwkrause@shaw.ca>
+References: <e4aee1a9-fee5-10d4-bf08-b3e7b10f32cf@shaw.ca>
+In-Reply-To: <e4aee1a9-fee5-10d4-bf08-b3e7b10f32cf@shaw.ca>
+Subject: RE: requesting plugin IDs
+Date: Sat, 13 Nov 2021 16:22:15 -0000
+Message-ID: <00c701d7d8aa$a0d36f10$e27a4d30$@muse440.com>
+MIME-Version: 1.0
+Content-Type: text/plain;
+	charset="utf-8"
+Content-Transfer-Encoding: 7bit
+X-Mailer: Microsoft Outlook 16.0
+Thread-Index: AQJSmygc+VUiWX7RvR5zAEdGf4bgVasMHnbw
+Content-Language: en-gb
+X-Rspamd-Queue-Id: 5EFCC5090199
+X-Spam-Status: No, score=-1.46
+X-Stat-Signature: zdwtwb7juqp9z4g5bw9rcs1nt3p5n6ke
+X-Rspamd-Server: rspamout04
+X-Session-Marker: 72696368617264406D7573653434302E636F6D
+X-Session-ID: U2FsdGVkX18SH0NfBtqT1+/vBXKio+Pj8h18R4hA2O0=
+X-HE-Tag: 1636820537-459557
+X-CMAE-Envelope: MS4xfNtG5tvsQik7NzT4m7KtXwUYtgpSKZMZxq9LFlv9AvOaTbbwwFWK5F7eLOcUYsW36Y4TKfOHPJ8UB8PzmEm4CXlsLEu//zN4xx2IHd6A99WBO8C7uxBT
+ TzNqtTIuwwBgemVA6+dDxmFNcbPGMJFrbRPyuI8L08hV8ok0AUkV6o4VAD/9j2nRPThtwvr4FPTtx5ZI4m1EICoQTU0/U+X7SE4=
+
+Hi there!
+
+Here's a range of plugin IDs for your use:
+
+	5801 - 5840
+
+Have fun!
+
+--Richard
+
+
+> -----Original Message-----
+> From: Timothy Krause <timwkrause@shaw.ca>
+> Sent: 13 November 2021 16:12
+> To: ids@ladspa.org
+> Subject: requesting plugin IDs
+> 
+> Hello.
+> 
+> I have several plugins that I would like to publish. What is the process
+> to obtain them?
+> 
+> Thanks.
+> 
+> Tim
+
