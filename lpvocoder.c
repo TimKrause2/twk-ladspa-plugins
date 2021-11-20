@@ -8,10 +8,10 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define N_ORDER 48
-#define T_WINDOW 20.0E-3
-
-#include "filter.h"
+#define N_ORDER   48
+#define T_WINDOW  20.0E-3f
+#define F_LOWPASS 7.0e3f
+#define Q_LOWPASS 0.707f
 
 enum {
 	PORT_IN_CTL,
@@ -34,19 +34,59 @@ typedef struct
 	double m_denvelope;
 } Filter_Data;
 
+typedef struct
+{
+	LADSPA_Data m_z[2];
+	LADSPA_Data m_a1;
+	LADSPA_Data m_a2;
+	LADSPA_Data m_b0;
+	LADSPA_Data m_b1;
+	LADSPA_Data m_b2;
+} LPFilter;
+
+static void LPFilter_init(
+		LPFilter *p_lpf,
+		LADSPA_Data p_frequency,
+		LADSPA_Data p_Q,
+		unsigned long p_sample_rate)
+{
+	LADSPA_Data l_omega = 2.0f*M_PI*p_frequency/p_sample_rate;
+	LADSPA_Data l_cos = cosf(l_omega);
+	LADSPA_Data l_sin = sinf(l_omega);
+	LADSPA_Data l_alpha = l_sin/(2*p_Q);
+	LADSPA_Data l_a0 = 1.0f + l_alpha;
+	p_lpf->m_a1 = -2.0f*l_cos/l_a0;
+	p_lpf->m_a2 = (1.0f - l_alpha)/l_a0;
+	p_lpf->m_b0 = (1.0f - l_cos)/2.0f/l_a0;
+	p_lpf->m_b1 = (1.0f - l_cos)/l_a0;
+	p_lpf->m_b2 = p_lpf->m_b0;
+	p_lpf->m_z[0] = 0.0f;
+	p_lpf->m_z[1] = 0.0f;
+}
+
+static LADSPA_Data LPFilter_evaluate(
+		LPFilter *p_lpf,
+		LADSPA_Data p_x)
+{
+	LADSPA_Data l_m = p_x - p_lpf->m_a1*p_lpf->m_z[0] - p_lpf->m_a2*p_lpf->m_z[1];
+	LADSPA_Data l_r = p_lpf->m_b0*l_m + p_lpf->m_b1*p_lpf->m_z[0]
+			+ p_lpf->m_b2*p_lpf->m_z[1];
+	p_lpf->m_z[1] = p_lpf->m_z[0];
+	p_lpf->m_z[0] = l_m;
+	return l_r;
+}
 
 typedef struct
 {
 	unsigned long m_sample_rate;
 	LADSPA_Data *m_pport[PORT_N_PORTS];
 	unsigned long m_N_window;
-	unsigned long m_i_z;
 	double m_gain; // gain coefficient from Levinson-Durbin recursion
 	double *m_pdata; // pointer to the allocated memory
-	double *m_pz; // control signal filter state
 	double *m_pw; // window coefficients (m_N_window)
 	double *m_pR; // autocorrelation coefficients (N_ORDER+1)
 	double *m_palpha[N_ORDER]; // Levinson-Durbin coefficients	(N_ORDER*(N_ORDER+1)/2)
+	LPFilter m_lpf;
 	Filter_Data m_filters[2];
 } LPVocoder_Data;
 
@@ -60,9 +100,8 @@ static LADSPA_Handle LPVocoder_instantiate(
 	l_pData->m_sample_rate = p_sample_rate;
 	l_pData->m_N_window = (unsigned long)ceil( (double)p_sample_rate*T_WINDOW );
 	if( l_pData->m_N_window&1 ) l_pData->m_N_window++;
-	l_pData->m_i_z = 0;
-	unsigned long l_n;
-	l_n = g_CtlFilter.m_N_order; // m_pz
+	LPFilter_init( &l_pData->m_lpf, F_LOWPASS, Q_LOWPASS, p_sample_rate);
+	unsigned long l_n=0;
 	l_n+= l_pData->m_N_window;   // m_pw
 	l_n+= N_ORDER+1;             // m_pR
 	l_n+= N_ORDER*(N_ORDER+1)/2; // m_palpha
@@ -74,8 +113,7 @@ static LADSPA_Handle LPVocoder_instantiate(
 		return NULL;
 	}
 	
-	l_pData->m_pz = l_pData->m_pdata;
-	l_pData->m_pw = l_pData->m_pz + g_CtlFilter.m_N_order;
+	l_pData->m_pw = l_pData->m_pdata;
 	l_pData->m_pR = l_pData->m_pw + l_pData->m_N_window;
 	
 	double *l_palpha = l_pData->m_pR + N_ORDER+1;
@@ -115,10 +153,6 @@ static LADSPA_Handle LPVocoder_instantiate(
 	
 	for( l_n=0; l_n<l_pData->m_N_window; l_n++){
 		l_pData->m_pw[l_n] = 0.54 - 0.46*cosf(2*M_PI*l_n/(l_pData->m_N_window-1));
-	}
-	
-	for( l_n=0; l_n<g_CtlFilter.m_N_order; l_n++){
-		l_pData->m_pz[l_n] = 0.0;
 	}
 	
 	return (LADSPA_Handle)l_pData;
@@ -290,54 +324,6 @@ static void LPVocoder_DataIn( LPVocoder_Data *p_pVocoder, Filter_Data *p_pFilter
 	}
 }
 
-static double LPVocoder_filter_datain( LPVocoder_Data *p_pVocoder, double p_x )
-{
-	double l_feedback = 0.0;
-	double l_feedforward = 0.0;
-	double *l_pa = g_CtlFilter.m_a;
-	double *l_pb = &g_CtlFilter.m_b[1];
-
-	long l_i_start = p_pVocoder->m_i_z-1;
-	if( l_i_start < 0 ) l_i_start += g_CtlFilter.m_N_order;
-	
-	long l_N_loop1 = l_i_start+1;
-	long l_N_loop2 = g_CtlFilter.m_N_order - l_N_loop1;
-	
-	double *l_pz = &p_pVocoder->m_pz[ l_i_start ];
-	
-	long l_i;
-	for( l_i=l_N_loop1-1; ; l_i-- ){
-		l_feedback += *l_pa * *l_pz;
-		l_feedforward += *l_pb * *l_pz;
-		l_pa++;
-		l_pb++;
-		if( l_i==0 ) break;
-		l_pz--;
-	}
-	
-	if( l_N_loop2 ){
-		l_pz = &p_pVocoder->m_pz[ g_CtlFilter.m_N_order - 1 ];
-		for( l_i=l_N_loop2-1; ; l_i-- ){
-			l_feedback += *l_pa * *l_pz;
-			l_feedforward += *l_pb * *l_pz;
-			if( l_i==0 ) break;
-			l_pa++;
-			l_pb++;
-			l_pz--;
-		}
-	}
-	
-	double l_m = p_x - l_feedback;
-	
-	double l_y = l_m * g_CtlFilter.m_b[0] + l_feedforward;
-	
-	p_pVocoder->m_pz[ p_pVocoder->m_i_z ] = l_m;
-	if(++p_pVocoder->m_i_z == g_CtlFilter.m_N_order )
-		p_pVocoder->m_i_z = 0;
-	
-	return l_y;
-}
-
 static void LPVocoder_run(
 	LADSPA_Handle p_pInstance,
 	unsigned long p_sample_count )
@@ -351,7 +337,7 @@ static void LPVocoder_run(
 	
 	long l_sample;
 	for( l_sample = p_sample_count-1; ; l_sample-- ){
-		double l_y = LPVocoder_filter_datain( l_pVocoder, *l_pSrcCTL );
+		double l_y = LPFilter_evaluate( &l_pVocoder->m_lpf, *l_pSrcCTL );
 
 		LPVocoder_DataIn( l_pVocoder, &l_pVocoder->m_filters[0], l_y );
 		LPVocoder_DataIn( l_pVocoder, &l_pVocoder->m_filters[1], l_y );
