@@ -11,10 +11,13 @@ PLUGIN_OBJECTS=$(PLUGIN_SOURCES:.c=.o)
 
 all:twk.so
 
-twk.so:twk.o $(PLUGIN_OBJECTS)
+twk.so:twk.o $(PLUGIN_OBJECTS) fad/libfad.a
 	gcc -shared -o twk.so twk.o $(PLUGIN_OBJECTS) -lm -L fad -lfad
 	
 twk.o:twk.c
 
 $(PLUGIN_OBJECTS):$(PLUGIN_SOURCES)
 
+fad/libfad.a:
+	make -C fad
+	
