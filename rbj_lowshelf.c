@@ -70,7 +70,7 @@ static void LowShelf_run(
 	LADSPA_Data l_omega = 2.0*M_PI* *l_pLowShelf->m_pport[PORT_FREQUENCY]/
 	l_pLowShelf->m_sample_rate;
 	LADSPA_Data l_A = exp10f( *l_pLowShelf->m_pport[PORT_GAIN] / 40.0 );
-	LADSPA_Data l_beta = sqrt((l_A*l_A+1.0f)/SLOPE - (l_A-1.0f)*(l_A-1.0f));
+	LADSPA_Data l_beta = sqrtf((l_A*l_A+1.0f)/SLOPE - (l_A-1.0f)*(l_A-1.0f));
 	LADSPA_Data l_cos = cosf(l_omega);
 	LADSPA_Data l_sin = sinf(l_omega);
 	LADSPA_Data l_a0 =         (l_A+1) + (l_A-1)*l_cos + l_beta*l_sin;
