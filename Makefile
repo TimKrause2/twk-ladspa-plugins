@@ -9,15 +9,15 @@ rbj_peakingEQ.c reverb20adjstereo.c
 
 PLUGIN_OBJECTS=$(PLUGIN_SOURCES:.c=.o)
 
-all:twk.so
+all:libfad twk.so
 
-twk.so:twk.o $(PLUGIN_OBJECTS) fad/libfad.a
+twk.so:twk.o $(PLUGIN_OBJECTS)
 	gcc -shared -o twk.so twk.o $(PLUGIN_OBJECTS) -lm -L fad -lfad
 	
 twk.o:twk.c
 
 $(PLUGIN_OBJECTS):$(PLUGIN_SOURCES)
 
-fad/libfad.a:
+libfad:
 	make -C fad
 	

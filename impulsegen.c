@@ -49,6 +49,14 @@ static LADSPA_Data sinc(LADSPA_Data x)
 	}
 }
 
+static LADSPA_Data hamming(LADSPA_Data alpha)
+{
+	return 0.54f + 0.46f*cosf(M_PI*alpha);
+}
+
+
+
+
 typedef struct
 {
 	unsigned long m_sample_rate;
@@ -75,7 +83,8 @@ static LADSPA_Handle ImpulseGen_instantiate(
 		LADSPA_Data l_alpha = (LADSPA_Data)i_ss/N_SS;
 		for(int i_window=0;i_window<N_WINDOW;i_window++){
 			LADSPA_Data l_x = (LADSPA_Data)(i_window-(N_WINDOW/2))-l_alpha;
-			p_pImpulseGen->m_impulse_data[i_ss][i_window] = sinc(M_PI*l_x);
+			LADSPA_Data l_alpha = (LADSPA_Data)(i_window-(N_WINDOW/2))/(N_WINDOW/2);
+			p_pImpulseGen->m_impulse_data[i_ss][i_window] = sinc(M_PI*l_x)*hamming(l_alpha);
 		}
 	}
 	for(int i_window=0;i_window<N_WINDOW;i_window++){
@@ -103,11 +112,11 @@ static void ImpulseGen_impulse(ImpulseGen *p_pImpulseGen, LADSPA_Data p_alpha){
 
 static LADSPA_Data ImpulseGen_evaluate(ImpulseGen *p_pImpulseGen){
 	LADSPA_Data l_deltaT = p_pImpulseGen->m_Tacc - p_pImpulseGen->m_Tperiod;
-	if(l_deltaT<0.0f){
+	if(l_deltaT<=-1.0f){
 		p_pImpulseGen->m_Tacc += 1.0f;
-	}else if(l_deltaT<1.0){
-		ImpulseGen_impulse(p_pImpulseGen,l_deltaT);//l_deltaT);
-		p_pImpulseGen->m_Tacc = 1.0f - l_deltaT;
+	}else if(l_deltaT<=0.0f){
+		ImpulseGen_impulse(p_pImpulseGen,-l_deltaT);
+		p_pImpulseGen->m_Tacc = 1.0f + l_deltaT;
 	}else{
 		ImpulseGen_impulse(p_pImpulseGen, 0.0f);
 		p_pImpulseGen->m_Tacc = 0.0f;

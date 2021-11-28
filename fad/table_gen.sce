@@ -1,11 +1,11 @@
 Nwindow = 32;
-Fss = 512;
+Fss = 1024;
 
 n=[-(Nwindow/2):(Nwindow/2)-1];
 
 for i=[0:Fss-1]
 	alpha = i/Fss;
-	table(i+1,1:Nwindow) = sinc( %pi*(n-alpha) );
+	table(i+1,1:Nwindow) = sinc( %pi*(n-alpha) ).*window('hm',Nwindow);
 end
 
 alpha = 1.0 / max(abs(table));
@@ -13,7 +13,7 @@ table = table * alpha;
 
 
 [fd,err] = mopen( "fad_table.h", "wt" );
-if err != 0 then
+if err~=0 then
 	mprintf("Error opening fad_table.h. err=%d\r\n", err );
 	exit
 end
