@@ -1,4 +1,5 @@
 #include <ladspa.h>
+#define _GNU_SOURCE
 #include <math.h>
 #include <stdlib.h>
 
@@ -11,19 +12,33 @@ enum {
 	PORT_RATIO_HI,
 	PORT_RATIO_LO,
 	PORT_THRESHOLD,
-	PORT_ATTACK,
 	PORT_DECAY,
 	PORT_NPORTS
 };
 
+#define N_WINDOW 32
+
 typedef struct
 {
-	unsigned long m_sample_rate;
-	LADSPA_Data* m_pdata[PORT_NPORTS];
-	LADSPA_Data  m_env1;
-	LADSPA_Data  m_env2;
+    LADSPA_Data m_env;
+    LADSPA_Data m_window[N_WINDOW];
+    int         m_i_window;
+} Compressor_State;
+
+typedef struct
+{
+    LADSPA_Data      m_sample_rate;
+    LADSPA_Data*     m_pdata[PORT_NPORTS];
+    Compressor_State m_cs[2];
 } Compressor_Data;
 
+void Compressor_State_Init( Compressor_State *cs ){
+    cs->m_env = 0.0f;
+    cs->m_i_window = 0;
+    for(int s=0;s<N_WINDOW;s++){
+        cs->m_window[s] = 0.0f;
+    }
+}
 
 static LADSPA_Handle Compressor_instantiate(
 	const struct _LADSPA_Descriptor* p_pDescriptor,
@@ -31,7 +46,10 @@ static LADSPA_Handle Compressor_instantiate(
 {
 	Compressor_Data* l_pData = malloc(sizeof(Compressor_Data));
 	if(l_pData){
-		l_pData->m_sample_rate = SampleRate;
+        l_pData->m_sample_rate = SampleRate;
+        for(int i=0;i<2;i++){
+            Compressor_State_Init( &l_pData->m_cs[i] );
+        }
 	}
 	return (LADSPA_Handle)l_pData;
 }
@@ -50,85 +68,94 @@ static void Compressor_connect_port(
 static void Compressor_activate(LADSPA_Handle p_instance)
 {
 	Compressor_Data* l_pData = (Compressor_Data*)p_instance;
-	l_pData->m_env1 = ABS_MIN;
-	l_pData->m_env2 = ABS_MIN;
+    for(int i=0;i<2;i++){
+        Compressor_State_Init( &l_pData->m_cs[i] );
+    }
 }
 
 static void buffer_compress(
-	LADSPA_Data* p_psrc,
-	LADSPA_Data* p_pdst,
-	LADSPA_Data* p_penv,
-	LADSPA_Data  p_unity,
-	LADSPA_Data  p_ratio_hi,
-	LADSPA_Data  p_ratio_lo,
-	LADSPA_Data  p_threshold,
-	LADSPA_Data  p_alpha_attack,
-	LADSPA_Data  p_alpha_decay,
-	unsigned long p_nsamples )
+    LADSPA_Data*      p_psrc,
+    LADSPA_Data*      p_pdst,
+    Compressor_State* p_pcs,
+    LADSPA_Data       p_unity,
+    LADSPA_Data       p_ratio_hi,
+    LADSPA_Data       p_ratio_lo,
+    LADSPA_Data       p_threshold,
+    LADSPA_Data       p_alpha_decay,
+    unsigned long     p_nsamples )
 {
-	unsigned long n;
 	LADSPA_Data *l_psrc = p_psrc;
 	LADSPA_Data *l_pdst = p_pdst;
-	for(n=0;n<p_nsamples;n++,l_psrc++,l_pdst++){
-		LADSPA_Data l_in = *l_psrc;
-		l_in = fabsf(l_in);
-		LADSPA_Data l_delta = l_in - *p_penv;
-		if(l_delta>0.0){
-			*p_penv+=l_delta*p_alpha_attack;
+    LADSPA_Data *l_psrc_end = l_psrc + p_nsamples;
+    LADSPA_Data  l_root2 = sqrtf(2.0f);
+    for(;l_psrc!=l_psrc_end;l_psrc++,l_pdst++){
+        p_pcs->m_window[p_pcs->m_i_window] = *l_psrc;
+        LADSPA_Data *l_pw = p_pcs->m_window;
+        LADSPA_Data l_rms=0.0f;
+        for(int i=0;i<N_WINDOW;i++,l_pw++){
+            l_rms += *l_pw * *l_pw;
+        }
+        l_rms/=N_WINDOW;
+        l_rms = sqrtf(l_rms);
+        LADSPA_Data l_peek = l_rms * l_root2;
+        if(l_peek > p_pcs->m_env){
+            p_pcs->m_env = l_peek;
+        }else{
+            LADSPA_Data l_delta = l_peek - p_pcs->m_env;
+            p_pcs->m_env += l_delta*p_alpha_decay;
+        }
+        if(p_pcs->m_env<ABS_MIN){
+			*l_pdst=0.0f;
 		}else{
-			*p_penv+=l_delta*p_alpha_decay;
-		}
-		if(*p_penv<ABS_MIN){
-			*l_pdst=0.0;
-		}else{
-			LADSPA_Data l_env_db = log10f(*p_penv)*20.0;
-			if(l_env_db<p_threshold){
+            LADSPA_Data l_env_db_in = log10f(p_pcs->m_env)*20.0f;
+            LADSPA_Data l_env_db_out;
+            if(l_env_db_in<=p_threshold){
 				LADSPA_Data l_comp_env_db = p_threshold - p_unity;
 				l_comp_env_db /= p_ratio_hi;
-				LADSPA_Data l_exp_env_db = l_env_db - p_threshold;
+                LADSPA_Data l_exp_env_db = l_env_db_in - p_threshold;
 				l_exp_env_db /= p_ratio_lo;
-				l_env_db = p_unity + l_comp_env_db + l_exp_env_db - l_env_db;
+                l_env_db_out = p_unity + l_comp_env_db + l_exp_env_db - l_env_db_in;
 			}else{
-				LADSPA_Data l_comp_env_db = l_env_db - p_unity;
+                LADSPA_Data l_comp_env_db = l_env_db_in - p_unity;
 				l_comp_env_db /= p_ratio_hi;
-				l_env_db = p_unity + l_comp_env_db - l_env_db;
+                l_env_db_out = p_unity + l_comp_env_db - l_env_db_in;
 			}
-			LADSPA_Data l_gain_factor = powf(10.0,l_env_db/20.0);
-			*l_pdst = *l_psrc * l_gain_factor;
+            LADSPA_Data l_gain_factor = exp10f(l_env_db_out/20.0f);
+            int l_i_read = p_pcs->m_i_window - N_WINDOW/2;
+            if(l_i_read<0)l_i_read+=N_WINDOW;
+
+            *l_pdst = p_pcs->m_window[l_i_read] * l_gain_factor;
 		}
-	}
+        p_pcs->m_i_window++;
+        p_pcs->m_i_window%=N_WINDOW;
+    }
 }
 
 static void Compressor_run(LADSPA_Handle p_instance, unsigned long SampleCount)
 {
 	Compressor_Data* l_pData = (Compressor_Data*)p_instance;
 	unsigned long n;
-// 	LADSPA_Data l_alpha_attack = 1.0 - expf(-1.0 / *l_pData->m_pdata[PORT_ATTACK] / l_pData->m_sample_rate);
-// 	LADSPA_Data l_alpha_decay = 1.0 - expf(-1.0 / *l_pData->m_pdata[PORT_DECAY] / l_pData->m_sample_rate);
-	LADSPA_Data l_alpha_attack = 1.0 - powf(0.05,1.0 / *l_pData->m_pdata[PORT_ATTACK] / l_pData->m_sample_rate);
 	LADSPA_Data l_alpha_decay = 1.0 - powf(0.05,1.0 / *l_pData->m_pdata[PORT_DECAY] / l_pData->m_sample_rate);
 
 	buffer_compress(
 		l_pData->m_pdata[PORT_RX1],
 		l_pData->m_pdata[PORT_TX1],
-		&l_pData->m_env1,
+        &l_pData->m_cs[0],
 		*l_pData->m_pdata[PORT_UNITY],
 		*l_pData->m_pdata[PORT_RATIO_HI],
 		*l_pData->m_pdata[PORT_RATIO_LO],
 		*l_pData->m_pdata[PORT_THRESHOLD],
-		l_alpha_attack,
 		l_alpha_decay,
 		SampleCount );
 	
 	buffer_compress(
 		l_pData->m_pdata[PORT_RX2],
 		l_pData->m_pdata[PORT_TX2],
-		&l_pData->m_env2,
+        &l_pData->m_cs[1],
 		*l_pData->m_pdata[PORT_UNITY],
 		*l_pData->m_pdata[PORT_RATIO_HI],
 		*l_pData->m_pdata[PORT_RATIO_LO],
 		*l_pData->m_pdata[PORT_THRESHOLD],
-		l_alpha_attack,
 		l_alpha_decay,
 		SampleCount );
 	
@@ -155,7 +182,6 @@ static LADSPA_PortDescriptor Compressor_PortDescriptors[]=
 	LADSPA_PORT_INPUT|LADSPA_PORT_CONTROL,
 	LADSPA_PORT_INPUT|LADSPA_PORT_CONTROL,
 	LADSPA_PORT_INPUT|LADSPA_PORT_CONTROL,
-	LADSPA_PORT_INPUT|LADSPA_PORT_CONTROL,
 	LADSPA_PORT_INPUT|LADSPA_PORT_CONTROL
 };
 
@@ -165,12 +191,11 @@ static const char* Compressor_PortNames[]=
 	"Input2",
 	"Output1",
 	"Output2",
-	"Unity",
-	"RatioHi",
-	"RatioLo",
-	"Threshold",
-	"Attack",
-	"Decay"
+    "Unity(dBFS)",
+    "RatioHi(in/out)",
+    "RatioLo(in/out)",
+    "Threshold(dBFS)",
+    "Decay(seconds)"
 };
 
 static LADSPA_PortRangeHint Compressor_PortRangeHints[]=
@@ -201,12 +226,6 @@ static LADSPA_PortRangeHint Compressor_PortRangeHints[]=
 		LADSPA_HINT_DEFAULT_MINIMUM|
 		LADSPA_HINT_BOUNDED_ABOVE,
 		-140.0,0.0},
-	{
-		LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_MIDDLE|
-		LADSPA_HINT_LOGARITHMIC,
-		0.001,5.0},
 	{
 		LADSPA_HINT_BOUNDED_BELOW|
 		LADSPA_HINT_BOUNDED_ABOVE|
