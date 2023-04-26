@@ -51,11 +51,8 @@ static LADSPA_Data sinc(LADSPA_Data x)
 
 static LADSPA_Data hamming(LADSPA_Data alpha)
 {
-	return 0.54f + 0.46f*cosf(M_PI*alpha);
+    return 0.54f + 0.46f*cosf(M_PIf*alpha);
 }
-
-
-
 
 typedef struct
 {
@@ -83,8 +80,8 @@ static LADSPA_Handle ImpulseGen_instantiate(
 		LADSPA_Data l_alpha = (LADSPA_Data)i_ss/N_SS;
 		for(int i_window=0;i_window<N_WINDOW;i_window++){
 			LADSPA_Data l_x = (LADSPA_Data)(i_window-(N_WINDOW/2))-l_alpha;
-			LADSPA_Data l_alpha = (LADSPA_Data)(i_window-(N_WINDOW/2))/(N_WINDOW/2);
-			p_pImpulseGen->m_impulse_data[i_ss][i_window] = sinc(M_PI*l_x)*hamming(l_alpha);
+            LADSPA_Data l_alpha_window = (LADSPA_Data)(i_window-(N_WINDOW/2))/(N_WINDOW/2);
+            p_pImpulseGen->m_impulse_data[i_ss][i_window] = sinc(M_PIf*l_x)*hamming(l_alpha_window);
 		}
 	}
 	for(int i_window=0;i_window<N_WINDOW;i_window++){

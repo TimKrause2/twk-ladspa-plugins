@@ -152,7 +152,7 @@ static LADSPA_Handle LPVocoder_instantiate(
 	}
 	
 	for( l_n=0; l_n<l_pData->m_N_window; l_n++){
-		l_pData->m_pw[l_n] = 0.54 - 0.46*cosf(2*M_PI*l_n/(l_pData->m_N_window-1));
+        l_pData->m_pw[l_n] = 0.54f - 0.46f*cosf(2.0f*M_PIf*l_n/(l_pData->m_N_window-1));
 	}
 	
 	return (LADSPA_Handle)l_pData;
@@ -286,7 +286,7 @@ static double LPVocoder_filter_evaluate( LPVocoder_Data *p_pVocoder, Filter_Data
 	
 	p_pFilter->m_envelope += p_pFilter->m_denvelope;
 	if( p_pFilter->m_i_window == p_pVocoder->m_N_window/2 )
-		p_pFilter->m_denvelope*=-1.0;
+        p_pFilter->m_denvelope*=-1.0f;
 	
 	return l_y;
 }

@@ -24,8 +24,9 @@
 #include "rbj_lowshelf.h"
 #include "rbj_peakingEQ.h"
 #include "reverb20adjstereo.h"
+#include "sinewave.h"
 
-#define N_PLUGINS 24
+#define N_PLUGINS 25
 
 const LADSPA_Descriptor *dTable[N_PLUGINS]=
 {
@@ -52,7 +53,8 @@ const LADSPA_Descriptor *dTable[N_PLUGINS]=
 	&RBJLowpassQ12_Descriptor,
 	&RBJLowShelf_Descriptor,
 	&RBJPeakingEQ_Descriptor,
-	&Reverb20AdjStereo_Descriptor
+    &Reverb20AdjStereo_Descriptor,
+    &SineWave_Descriptor
 };
 
 const LADSPA_Descriptor *ladspa_descriptor(unsigned long Index)

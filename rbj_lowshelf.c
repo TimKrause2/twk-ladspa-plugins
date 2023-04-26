@@ -30,7 +30,7 @@ enum {
 };
 
 typedef struct {
-	unsigned long m_sample_rate;
+    LADSPA_Data m_sample_rate;
 	LADSPA_Data *m_pport[PORT_NPORTS];
 	LADSPA_Data m_z1;
 	LADSPA_Data m_z2;
@@ -42,10 +42,10 @@ static LADSPA_Handle LowShelf_instantiate(
 	unsigned long p_sample_rate ){
 	LowShelf_Data *l_pLowShelf = malloc( sizeof(LowShelf_Data) );
 	if( l_pLowShelf ){
-		l_pLowShelf->m_sample_rate = p_sample_rate;
+        l_pLowShelf->m_sample_rate = (float)p_sample_rate;
 		l_pLowShelf->m_z1 = 0.0;
 		l_pLowShelf->m_z2 = 0.0;
-		l_pLowShelf->m_log2d2 = logf(2.0)/2.0;
+        l_pLowShelf->m_log2d2 = logf(2.0f)/2.0f;
 	}
 	return (LADSPA_Handle)l_pLowShelf;
 }
@@ -64,28 +64,26 @@ static void LowShelf_run(
 	unsigned long p_sample_count)
 {
 	LowShelf_Data *l_pLowShelf = (LowShelf_Data*)p_pInstance;
-	unsigned long l_sample;
 	LADSPA_Data *l_psrc = l_pLowShelf->m_pport[PORT_IN];
 	LADSPA_Data *l_pdst = l_pLowShelf->m_pport[PORT_OUT];
-	LADSPA_Data l_omega = 2.0*M_PI* *l_pLowShelf->m_pport[PORT_FREQUENCY]/
+    LADSPA_Data *l_psrc_end = l_psrc + p_sample_count;
+    LADSPA_Data l_omega = 2.0f*M_PIf* *l_pLowShelf->m_pport[PORT_FREQUENCY]/
 	l_pLowShelf->m_sample_rate;
-	LADSPA_Data l_A = exp10f( *l_pLowShelf->m_pport[PORT_GAIN] / 40.0 );
+    LADSPA_Data l_A = exp10f( *l_pLowShelf->m_pport[PORT_GAIN] / 40.0f );
 	LADSPA_Data l_beta = sqrtf((l_A*l_A+1.0f)/SLOPE - (l_A-1.0f)*(l_A-1.0f));
 	LADSPA_Data l_cos = cosf(l_omega);
 	LADSPA_Data l_sin = sinf(l_omega);
-	LADSPA_Data l_a0 =         (l_A+1) + (l_A-1)*l_cos + l_beta*l_sin;
-	LADSPA_Data l_a1 =    -2*( (l_A-1) + (l_A+1)*l_cos )/l_a0;
-	LADSPA_Data l_a2 =       ( (l_A+1) + (l_A-1)*l_cos - l_beta*l_sin)/l_a0;
-	LADSPA_Data l_b0 =   l_A*( (l_A+1) - (l_A-1)*l_cos + l_beta*l_sin)/l_a0;
-	LADSPA_Data l_b1 = 2*l_A*( (l_A-1) - (l_A+1)*l_cos )/l_a0;
-	LADSPA_Data l_b2 =   l_A*( (l_A+1) - (l_A-1)*l_cos - l_beta*l_sin)/l_a0;
-	for(l_sample=0;l_sample<p_sample_count;l_sample++){
-		LADSPA_Data l_m = *l_psrc - l_a1*l_pLowShelf->m_z1 - l_a2*l_pLowShelf->m_z2;
+    LADSPA_Data l_a0 =  (l_A+1.0f) + (l_A-1.0f)*l_cos + l_beta*l_sin;
+    register LADSPA_Data l_a1 =    -2.0f*( (l_A-1.0f) + (l_A+1.0f)*l_cos )/l_a0;
+    register LADSPA_Data l_a2 =          ( (l_A+1.0f) + (l_A-1.0f)*l_cos - l_beta*l_sin)/l_a0;
+    register LADSPA_Data l_b0 =      l_A*( (l_A+1.0f) - (l_A-1.0f)*l_cos + l_beta*l_sin)/l_a0;
+    register LADSPA_Data l_b1 = 2.0f*l_A*( (l_A-1.0f) - (l_A+1.0f)*l_cos )/l_a0;
+    register LADSPA_Data l_b2 =      l_A*( (l_A+1.0f) - (l_A-1.0f)*l_cos - l_beta*l_sin)/l_a0;
+    for(;l_psrc!=l_psrc_end;l_psrc++,l_pdst++){
+        register LADSPA_Data l_m = *l_psrc - l_a1*l_pLowShelf->m_z1 - l_a2*l_pLowShelf->m_z2;
 		*l_pdst = l_b0*l_m + l_b1*l_pLowShelf->m_z1 + l_b2*l_pLowShelf->m_z2;
 		l_pLowShelf->m_z2 = l_pLowShelf->m_z1;
 		l_pLowShelf->m_z1 = l_m;
-		l_psrc++;
-		l_pdst++;
 	}
 }
 
@@ -116,10 +114,10 @@ static LADSPA_PortRangeHint LowShelf_PortRangeHints[]=
 	{0,0,0},
 	{LADSPA_HINT_BOUNDED_BELOW|LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_LOGARITHMIC|LADSPA_HINT_DEFAULT_MIDDLE,
-		10.0,2000.0},
+        10.0f,2000.0f},
 	{LADSPA_HINT_BOUNDED_BELOW|LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_DEFAULT_0,
-		-60.0,60.0}
+        -60.0f,60.0f}
 };
 
 LADSPA_Descriptor RBJLowShelf_Descriptor=

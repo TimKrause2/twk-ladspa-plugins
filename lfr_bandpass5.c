@@ -19,6 +19,21 @@
 #include <math.h>
 #include <stdlib.h>
 
+#define RAND_FLOAT ((float)rand()/RAND_MAX)
+#define FREQUENCY_MIN 10.0f
+#define FREQUENCY_MAX 20.0e3f
+#define PERIOD_MIN 0.01f
+#define PERIOD_MAX 1.0f
+#define PERIOD_MOD_MIN 0.01f
+#define PERIOD_MOD_MAX 1.0f
+#define AMOUNT_MIN 0.0f
+#define AMOUNT_MAX 5.0E3f
+#define BANDWIDTH_MIN 10.0f
+#define BANDWIDTH_MAX 1000.0f
+#define GAIN_MIN -60.0f
+#define GAIN_MAX  24.0f
+
+
 enum {
 	PORT_IN,
 	PORT_OUT,
@@ -67,16 +82,16 @@ typedef struct
 {
 	LADSPA_Data m_z1;
 	LADSPA_Data m_z2;
-	LADSPA_Data m_lfr_alpha;
-	LADSPA_Data m_lfr_alpha1;
-	LADSPA_Data m_lfr_dalpha;
+    LADSPA_Data m_lfr_frequency;
+    LADSPA_Data m_lfr_frequency1;
+    LADSPA_Data m_lfr_dfrequency;
 	unsigned long m_lfr_sample;
 	unsigned long m_lfr_sample_count;
 } Filter_Data;
 
 typedef struct
 {
-	unsigned long m_sample_rate;
+    LADSPA_Data  m_sample_rate;
 	LADSPA_Data *m_pport[PORT_NPORTS];
 	Filter_Data  m_filters[5];
 } Bandpass_Data;
@@ -91,11 +106,9 @@ static LADSPA_Handle Bandpass_instantiate(
 		Filter_Data *l_pFilter = l_pBandpass->m_filters;
 		unsigned long l_filter;
 		for(l_filter=0;l_filter<5;l_filter++){
-			l_pFilter->m_z1 = 0.0;
-			l_pFilter->m_z2 = 0.0;
-			l_pFilter->m_lfr_alpha = 0.0;
-			l_pFilter->m_lfr_alpha1 = 0.0;
-			l_pFilter->m_lfr_dalpha = 0.0;
+            l_pFilter->m_z1 = 0.0f;
+            l_pFilter->m_z2 = 0.0f;
+            l_pFilter->m_lfr_frequency1 = 1000.0f;
 			l_pFilter->m_lfr_sample = 0;
 			l_pFilter->m_lfr_sample_count = 0;
 			l_pFilter++;
@@ -123,7 +136,7 @@ static void Bandpass_run(
 	LADSPA_Data *l_psrc = l_pBandpass->m_pport[PORT_IN];
 	LADSPA_Data *l_pdst = l_pBandpass->m_pport[PORT_OUT];
 	for( l_sample = 0; l_sample < p_sample_count; l_sample++ ){
-		*l_pdst++ = 0.0;
+        *l_pdst++ = 0.0f;
 	}
 	
 	unsigned long l_filter;
@@ -132,32 +145,34 @@ static void Bandpass_run(
 	for( l_filter=0;l_filter<5;l_filter++){
 		l_psrc = l_pBandpass->m_pport[PORT_IN];
 		l_pdst = l_pBandpass->m_pport[PORT_OUT];
-		LADSPA_Data l_R = expf(-M_PI * *l_pPortData->m_bandwidth / l_pBandpass->m_sample_rate );
-		LADSPA_Data l_G = 1 - l_R;
-		l_G *= exp10f( *l_pPortData->m_gain / 20 );
+        LADSPA_Data l_R = expf(-M_PIf * *l_pPortData->m_bandwidth / l_pBandpass->m_sample_rate );
+        LADSPA_Data l_G = 1.0f - l_R;
+        l_G *= exp10f( *l_pPortData->m_gain / 20.0f );
 		LADSPA_Data l_a2 = l_R*l_R;
 	
 		for( l_sample = 0; l_sample < p_sample_count; l_sample++ ){
 			if( l_pFilter->m_lfr_sample == l_pFilter->m_lfr_sample_count ){
 				// reached the end of the last period
-				l_pFilter->m_lfr_alpha = l_pFilter->m_lfr_alpha1;
-				l_pFilter->m_lfr_alpha1 = drand48();
+                l_pFilter->m_lfr_frequency = l_pFilter->m_lfr_frequency1;
+                l_pFilter->m_lfr_frequency1 = *l_pPortData->m_frequency
+                        + RAND_FLOAT * *l_pPortData->m_lfr_amount;
 				l_pFilter->m_lfr_sample_count =
 					(*l_pBandpass->m_pport[PORT_PERIOD] +
-					drand48()* *l_pBandpass->m_pport[PORT_PERIOD_MOD])*l_pBandpass->m_sample_rate;
+                    RAND_FLOAT * *l_pBandpass->m_pport[PORT_PERIOD_MOD])*
+                        l_pBandpass->m_sample_rate;
 				l_pFilter->m_lfr_sample = 0;
-				l_pFilter->m_lfr_dalpha = (l_pFilter->m_lfr_alpha1-l_pFilter->m_lfr_alpha)/l_pFilter->m_lfr_sample_count;
+                l_pFilter->m_lfr_dfrequency =
+                        (l_pFilter->m_lfr_frequency1-l_pFilter->m_lfr_frequency)/l_pFilter->m_lfr_sample_count;
 			}
-			LADSPA_Data l_frequency = *l_pPortData->m_frequency + l_pFilter->m_lfr_alpha * *l_pPortData->m_lfr_amount;
-			LADSPA_Data l_theta = 2 * M_PI * l_frequency / l_pBandpass->m_sample_rate;
-			LADSPA_Data l_a1 = -2 * l_R * cosf(l_theta);
+            LADSPA_Data l_theta = 2.0f * M_PIf * l_pFilter->m_lfr_frequency / l_pBandpass->m_sample_rate;
+            LADSPA_Data l_a1 = -2.0f * l_R * cosf(l_theta);
 			LADSPA_Data m = *l_psrc - l_a1*l_pFilter->m_z1 - l_a2*l_pFilter->m_z2;
 			*l_pdst += l_G*(m - l_R*l_pFilter->m_z2);
 			l_pFilter->m_z2 = l_pFilter->m_z1;
 			l_pFilter->m_z1 = m;
 			l_psrc++;
 			l_pdst++;
-			l_pFilter->m_lfr_alpha += l_pFilter->m_lfr_dalpha;
+            l_pFilter->m_lfr_frequency += l_pFilter->m_lfr_dfrequency;
 			l_pFilter->m_lfr_sample++;
 		}
 		l_pFilter++;
@@ -243,121 +258,120 @@ static LADSPA_PortRangeHint Bandpass_PortRangeHints[]=
 		LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_LOGARITHMIC|
 		LADSPA_HINT_DEFAULT_MIDDLE,
-		0.001,10
+        PERIOD_MIN, PERIOD_MAX
 	},
 	{ LADSPA_HINT_BOUNDED_BELOW|
 		LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_LOGARITHMIC|
 		LADSPA_HINT_DEFAULT_MIDDLE,
-		0.001,10
+        PERIOD_MOD_MIN, PERIOD_MOD_MAX
 	},
 
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_MIDDLE,
-		10, 13000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		10, 1000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_0,
-		-60,24
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		0,5000
-	},
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_MIDDLE,
+        FREQUENCY_MIN, FREQUENCY_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        BANDWIDTH_MIN, BANDWIDTH_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_0,
+        GAIN_MIN, GAIN_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        AMOUNT_MIN, AMOUNT_MAX
+    },
 
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_MIDDLE,
-		10, 13000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		10, 1000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_0,
-		-60,24
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		0,5000
-	},
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_MIDDLE,
+        FREQUENCY_MIN, FREQUENCY_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        BANDWIDTH_MIN, BANDWIDTH_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_0,
+        GAIN_MIN, GAIN_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        AMOUNT_MIN, AMOUNT_MAX
+    },
 
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_MIDDLE,
-		10, 13000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		10, 1000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_0,
-		-60,24
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		0,5000
-	},
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_MIDDLE,
+        FREQUENCY_MIN, FREQUENCY_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        BANDWIDTH_MIN, BANDWIDTH_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_0,
+        GAIN_MIN, GAIN_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        AMOUNT_MIN, AMOUNT_MAX
+    },
 
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_MIDDLE,
-		10, 13000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		10, 1000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_0,
-		-60,24
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		0,5000
-	},
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_MIDDLE,
+        FREQUENCY_MIN, FREQUENCY_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        BANDWIDTH_MIN, BANDWIDTH_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_0,
+        GAIN_MIN, GAIN_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        AMOUNT_MIN, AMOUNT_MAX
+    },
 
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_MIDDLE,
-		10, 13000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		10, 1000
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_0,
-		-60,24
-	},
-	{ LADSPA_HINT_BOUNDED_BELOW|
-		LADSPA_HINT_BOUNDED_ABOVE|
-		LADSPA_HINT_DEFAULT_LOW,
-		0,5000
-	},
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_MIDDLE,
+        FREQUENCY_MIN, FREQUENCY_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        BANDWIDTH_MIN, BANDWIDTH_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_0,
+        GAIN_MIN, GAIN_MAX
+    },
+    { LADSPA_HINT_BOUNDED_BELOW|
+        LADSPA_HINT_BOUNDED_ABOVE|
+        LADSPA_HINT_DEFAULT_LOW,
+        AMOUNT_MIN, AMOUNT_MAX
+    }
 
-	
 };
 
 LADSPA_Descriptor LFRBandpass5_Descriptor=

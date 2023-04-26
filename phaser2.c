@@ -1,4 +1,5 @@
 #include <ladspa.h>
+#define _GNU_SOURCE
 #include <math.h>
 #include <complex.h>
 #include <stdlib.h>
@@ -55,7 +56,7 @@ static LADSPA_Data FilterEvaluate( Filter *p_filter, LADSPA_Data p_in )
 }
 
 typedef struct {
-	unsigned long m_sample_rate;
+    LADSPA_Data   m_sample_rate;
 	LADSPA_Data  *m_pport[PORT_NPORTS];
 	Filter        m_filters[N_FILTERS];
 	LADSPA_Data   m_lfo_theta;
@@ -93,13 +94,13 @@ static void Phaser_run( LADSPA_Handle p_instance, unsigned long p_sample_count )
 	LADSPA_Data l_wet_gain = *l_pPhaser->m_pport[PORT_WET];
 	LADSPA_Data *l_psrc = l_pPhaser->m_pport[PORT_IN];
 	LADSPA_Data *l_pdst = l_pPhaser->m_pport[PORT_OUT];
+    LADSPA_Data *l_psrc_end = l_psrc + p_sample_count;
 	unsigned long l_nfilters = (unsigned long)floorf(*l_pPhaser->m_pport[PORT_NFILTERS]);
-	unsigned long l_sample;
 	LADSPA_Data l_freq0 = *l_pPhaser->m_pport[PORT_FREQUENCY];
 	LADSPA_Data l_radius = *l_pPhaser->m_pport[PORT_RADIUS];
 	LADSPA_Data l_lfo_amount = *l_pPhaser->m_pport[PORT_LFO_AMOUNT];
-	LADSPA_Data l_dtheta = 2.0f*M_PI* *l_pPhaser->m_pport[PORT_LFO_FREQUENCY] / l_pPhaser->m_sample_rate;
-	for( l_sample=0;l_sample<p_sample_count;l_sample++){
+    LADSPA_Data l_dtheta = 2.0f*M_PIf* *l_pPhaser->m_pport[PORT_LFO_FREQUENCY] / l_pPhaser->m_sample_rate;
+    for(;l_psrc!=l_psrc_end;l_psrc++,l_pdst++){
 		LADSPA_Data l_out = *l_psrc;
 		Filter *l_pFilter = l_pPhaser->m_filters;
 		Filter l_filter;
@@ -115,11 +116,9 @@ static void Phaser_run( LADSPA_Handle p_instance, unsigned long p_sample_count )
 			l_out = FilterEvaluate( l_pFilter, l_out );
 		}
 		*l_pdst = (l_out*l_wet_gain + *l_psrc)*0.5f;
-		l_pdst++;
-		l_psrc++;
 		l_pPhaser->m_lfo_theta += l_dtheta;
-		if(l_pPhaser->m_lfo_theta >= 2.0f*M_PI)
-			l_pPhaser->m_lfo_theta-=2.0f*M_PI;
+        if(l_pPhaser->m_lfo_theta >= 2.0f*M_PIf)
+            l_pPhaser->m_lfo_theta-=2.0f*M_PIf;
 	}
 }
 
@@ -154,41 +153,41 @@ static const char* Phaser_PortNames[]=
 
 static LADSPA_PortRangeHint Phaser_PortRangeHints[]=
 {
-	{0, 0.0, 0.0},
-	{0, 0.0, 0.0},
+    {0, 0.0f, 0.0f},
+    {0, 0.0f, 0.0f},
 	{ LADSPA_HINT_BOUNDED_BELOW|
 		LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_DEFAULT_MAXIMUM,
-		-1.0,1.0
+        -1.0f,1.0f
 	},
 	{ LADSPA_HINT_BOUNDED_BELOW|
 		LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_LOGARITHMIC|
 		LADSPA_HINT_DEFAULT_LOW,
-		10.0, 5000.0
+        10.0f, 5000.0f
 	},
 	{ LADSPA_HINT_BOUNDED_BELOW|
 		LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_LOGARITHMIC|
 		LADSPA_HINT_DEFAULT_HIGH,
-		0.01,0.9995
+        0.01f,0.9995f
 	},
 	{ LADSPA_HINT_BOUNDED_BELOW|
 		LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_INTEGER|
 		LADSPA_HINT_DEFAULT_LOW,
-		1.0,N_FILTERS
+        1.0f,N_FILTERS
 	},
 	{ LADSPA_HINT_BOUNDED_BELOW|
 		LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_LOGARITHMIC|
 		LADSPA_HINT_DEFAULT_MIDDLE,
-		0.001, 10.0
+        0.001f, 10.0f
 	},
 	{ LADSPA_HINT_BOUNDED_BELOW|
 		LADSPA_HINT_BOUNDED_ABOVE|
 		LADSPA_HINT_DEFAULT_LOW,
-		0.0, 5000.0
+        0.0f, 5000.0f
 	}
 };
 

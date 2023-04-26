@@ -1,4 +1,5 @@
 #include <ladspa.h>
+#define _GNU_SOURCE
 #include <math.h>
 #include <complex.h>
 #include <stdlib.h>
@@ -26,7 +27,7 @@ typedef struct
 static void FilterCoefficients( Filter *p_filter, LADSPA_Data p_frequency, unsigned long p_sample_rate )
 {
 	LADSPA_Data l_T = (LADSPA_Data)1.0f/p_sample_rate;
-	LADSPA_Data l_tau = 1.0f/(2.0f*M_PI*p_frequency);
+	LADSPA_Data l_tau = 1.0f/(2.0f*M_PIf*p_frequency);
 	p_filter->m_alpha = l_tau/(l_T + l_tau);
 }
 
@@ -39,13 +40,13 @@ static void FilterInit( Filter *p_filter )
 static LADSPA_Data FilterEvaluate( Filter *p_filter, LADSPA_Data p_in )
 {
 	p_filter->m_e_c = p_filter->m_alpha*( p_filter->m_e_c + p_in - p_filter->m_x_last );
-	LADSPA_Data l_v_o = 2*p_filter->m_e_c - p_in;
+	LADSPA_Data l_v_o = 2.0f*p_filter->m_e_c - p_in;
 	p_filter->m_x_last = p_in;
 	return -l_v_o;
 }
 
 typedef struct {
-	unsigned long m_sample_rate;
+	LADSPA_Data   m_sample_rate;
 	LADSPA_Data  *m_pport[PORT_NPORTS];
 	Filter        m_filters[N_FILTERS];
 	LADSPA_Data   m_lfo_theta;
@@ -57,8 +58,8 @@ static LADSPA_Handle Phaser_instantiate(
 {
 	Phaser_Data *l_pPhaser = malloc( sizeof(Phaser_Data) );
 	if(l_pPhaser){
-		l_pPhaser->m_sample_rate = p_sample_rate;
-		l_pPhaser->m_lfo_theta = 0.0;
+		l_pPhaser->m_sample_rate = (float)p_sample_rate;
+		l_pPhaser->m_lfo_theta = 0.0f;
 		unsigned long l_f;
 		for( l_f=0;l_f<N_FILTERS;l_f++){
 			FilterInit( &l_pPhaser->m_filters[l_f] );
@@ -87,7 +88,7 @@ static void Phaser_run( LADSPA_Handle p_instance, unsigned long p_sample_count )
 	unsigned long l_sample;
 	LADSPA_Data l_freq0 = *l_pPhaser->m_pport[PORT_FREQUENCY];
 	LADSPA_Data l_lfo_amount = *l_pPhaser->m_pport[PORT_LFO_AMOUNT];
-	LADSPA_Data l_dtheta = 2.0f*M_PI* *l_pPhaser->m_pport[PORT_LFO_FREQUENCY] / l_pPhaser->m_sample_rate;
+	LADSPA_Data l_dtheta = 2.0f*M_PIf* *l_pPhaser->m_pport[PORT_LFO_FREQUENCY] / l_pPhaser->m_sample_rate;
 	for( l_sample=0;l_sample<p_sample_count;l_sample++){
 		LADSPA_Data l_out = *l_psrc;
 		Filter *l_pFilter = l_pPhaser->m_filters;
@@ -103,8 +104,8 @@ static void Phaser_run( LADSPA_Handle p_instance, unsigned long p_sample_count )
 		l_pdst++;
 		l_psrc++;
 		l_pPhaser->m_lfo_theta += l_dtheta;
-		if(l_pPhaser->m_lfo_theta >= 2.0f*M_PI)
-			l_pPhaser->m_lfo_theta-=2.0f*M_PI;
+		if(l_pPhaser->m_lfo_theta >= 2.0f*M_PIf)
+			l_pPhaser->m_lfo_theta-=2.0f*M_PIf;
 	}
 }
 
