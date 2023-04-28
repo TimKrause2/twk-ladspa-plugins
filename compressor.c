@@ -16,7 +16,9 @@ enum {
 	PORT_NPORTS
 };
 
-#define N_WINDOW 32
+#define N_WINDOW 2
+#define ABS_MIN 1.19209290e-7
+#define PEEK2_K 0.5f
 
 typedef struct
 {
@@ -63,8 +65,6 @@ static void Compressor_connect_port(
 	m_pData->m_pdata[p_port] = p_pdata;
 }
 
-#define ABS_MIN 1.19209290e-7
-
 static void Compressor_activate(LADSPA_Handle p_instance)
 {
 	Compressor_Data* l_pData = (Compressor_Data*)p_instance;
@@ -90,14 +90,12 @@ static void buffer_compress(
     LADSPA_Data  l_root2 = sqrtf(2.0f);
     for(;l_psrc!=l_psrc_end;l_psrc++,l_pdst++){
         p_pcs->m_window[p_pcs->m_i_window] = *l_psrc;
-        LADSPA_Data *l_pw = p_pcs->m_window;
-        LADSPA_Data l_rms=0.0f;
-        for(int i=0;i<N_WINDOW;i++,l_pw++){
-            l_rms += *l_pw * *l_pw;
-        }
-        l_rms/=N_WINDOW;
-        l_rms = sqrtf(l_rms);
-        LADSPA_Data l_peek = l_rms * l_root2;
+        LADSPA_Data l_peek = fabsf(*l_psrc);
+        LADSPA_Data l_peek2 = fabsf(
+            p_pcs->m_window[0]*PEEK2_K +
+            p_pcs->m_window[1]*PEEK2_K);
+        if(l_peek2 > l_peek )
+            l_peek = l_peek2;
         if(l_peek > p_pcs->m_env){
             p_pcs->m_env = l_peek;
         }else{
@@ -121,10 +119,7 @@ static void buffer_compress(
                 l_env_db_out = p_unity + l_comp_env_db - l_env_db_in;
 			}
             LADSPA_Data l_gain_factor = exp10f(l_env_db_out/20.0f);
-            int l_i_read = p_pcs->m_i_window - N_WINDOW/2;
-            if(l_i_read<0)l_i_read+=N_WINDOW;
-
-            *l_pdst = p_pcs->m_window[l_i_read] * l_gain_factor;
+            *l_pdst = *l_psrc * l_gain_factor;
 		}
         p_pcs->m_i_window++;
         p_pcs->m_i_window%=N_WINDOW;
