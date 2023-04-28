@@ -24,7 +24,7 @@ static const char* ImpulseGen_PortNames[]=
 {
 	"Output",
 	"Frequency(Hz)",
-	"Amplitude"
+    "Amplitude(dBFS)"
 };
 
 static LADSPA_PortRangeHint ImpulseGen_PortRangeHints[]=
@@ -37,7 +37,7 @@ static LADSPA_PortRangeHint ImpulseGen_PortRangeHints[]=
 	{ LADSPA_HINT_BOUNDED_BELOW |
 		LADSPA_HINT_BOUNDED_ABOVE |
 		LADSPA_HINT_DEFAULT_MAXIMUM,
-		0.0f, 1.0f}
+        -140.0f, 12.0f}
 };
 
 static LADSPA_Data sinc(LADSPA_Data x)
@@ -56,10 +56,10 @@ static LADSPA_Data hamming(LADSPA_Data alpha)
 
 typedef struct
 {
-	unsigned long m_sample_rate;
+    LADSPA_Data  m_sample_rate;
 	LADSPA_Data *m_pport[PORT_NPORTS];
-	LADSPA_Data m_impulse_data[N_SS][N_WINDOW];
-	LADSPA_Data m_accumulator[N_WINDOW];
+    LADSPA_Data  m_impulse_data[N_SS][N_WINDOW];
+    LADSPA_Data  m_accumulator[N_WINDOW];
 	int m_i_acc;
 	LADSPA_Data m_Tacc;
 	LADSPA_Data m_Tperiod;
@@ -141,9 +141,10 @@ static void ImpulseGen_run(
 	ImpulseGen *p_pImpulseGen = (ImpulseGen*)p_pinstance;
 
 	LADSPA_Data l_frequency = *p_pImpulseGen->m_pport[PORT_FREQUENCY];
-	LADSPA_Data l_amp = *p_pImpulseGen->m_pport[PORT_AMPLITUDE];
+    LADSPA_Data l_amp = exp10f(
+                *p_pImpulseGen->m_pport[PORT_AMPLITUDE]/20.0f);
 
-	p_pImpulseGen->m_Tperiod = (LADSPA_Data)p_pImpulseGen->m_sample_rate/l_frequency;
+    p_pImpulseGen->m_Tperiod = p_pImpulseGen->m_sample_rate/l_frequency;
 	
 	long sample;
 	LADSPA_Data *l_pdst = p_pImpulseGen->m_pport[PORT_OUT];
