@@ -25,27 +25,27 @@ static const char* Distortion_PortNames[]=
 {
 	"Input",
 	"Output",
-	"Waveshape",
-	"PreGain(dB)",
+    "Waveshape(nth root)",
+    "PreGain(dB)",
 	"PostGain(dB)"
 };
 
 static LADSPA_PortRangeHint Distortion_PortRangeHints[]=
 {
-	{0, 0.0, 0.0},
-	{0, 0.0, 0.0},
+    {0, 0.0f, 0.0f},
+    {0, 0.0f, 0.0f},
 	{ LADSPA_HINT_BOUNDED_BELOW |
 		LADSPA_HINT_BOUNDED_ABOVE |
 		LADSPA_HINT_DEFAULT_LOW,
-		1.0, 20.0},
+        1.0f, 20.0f},
 	{ LADSPA_HINT_BOUNDED_BELOW |
 		LADSPA_HINT_BOUNDED_ABOVE |
-		LADSPA_HINT_DEFAULT_LOW,
-		0.0, 96.0},
+        LADSPA_HINT_DEFAULT_MIDDLE,
+        -96.0f, 96.0f},
 	{ LADSPA_HINT_BOUNDED_BELOW |
 		LADSPA_HINT_BOUNDED_ABOVE |
-		LADSPA_HINT_DEFAULT_HIGH,
-		-48.0, 0.0}
+        LADSPA_HINT_DEFAULT_MIDDLE,
+        -48.0f, 48.0f}
 };
 
 typedef struct 
