@@ -5,7 +5,7 @@ impulsegenvctl.c lfo_allpass.c lfo_bandpass.c lfo_bandpass5.c \
 lfo_delay.c lfr_bandpass5.c lpvocoder.c phaser.c phaser2.c \
 rbj_bandpass_bw.c rbj_bandpass.c rbj_highpass.c rbj_highpass12order.c \
 rbj_highshelf.c rbj_lowpass.c rbj_lowpass12order.c rbj_lowshelf.c \
-rbj_peakingEQ.c reverb20adjstereo.c sinewave.c
+rbj_peakingEQ.c reverb20adjstereo.c sinewave.c bw_lp.c bw_hp.c
 
 PLUGIN_OBJECTS=$(PLUGIN_SOURCES:.c=.o)
 PLUGIN_ASM=$(PLUGIN_SOURCES:.c=.s)

@@ -25,43 +25,42 @@
 #include "rbj_peakingEQ.h"
 #include "reverb20adjstereo.h"
 #include "sinewave.h"
+#include "bw_lp.h"
+#include "bw_hp.h"
 
-#define N_PLUGINS 25
-
-const LADSPA_Descriptor *dTable[N_PLUGINS]=
+const LADSPA_Descriptor *dTable[]=
 {
-	&Compressor_Descriptor,
-	&DCRemove_Descriptor,
-	&Delay_Descriptor,
-	&Distortion_Descriptor,
-	&ImpulseGen_Descriptor,
-	&ImpulseGenVC_Descriptor,
-	&LFOAllPass_Descriptor,
-	&LFOBandpass_Descriptor,
-	&LFOBandpass5_Descriptor,
-	&LFODelay_Descriptor,
-	&LFRBandpass5_Descriptor,
-	&LPVocoder_Descriptor,
-	&Phaser_Descriptor,
-	&Phaser2_Descriptor,
-	&RBJBandpassBW_Descriptor,
-	&RBJBandpassQ_Descriptor,
-	&RBJHighpassQ_Descriptor,
-	&RBJHighpassQ12_Descriptor,
-	&RBJHighShelf_Descriptor,
-	&RBJLowpassQ_Descriptor,
-	&RBJLowpassQ12_Descriptor,
-	&RBJLowShelf_Descriptor,
-	&RBJPeakingEQ_Descriptor,
-    &Reverb20AdjStereo_Descriptor,
-    &SineWave_Descriptor
+    &Compressor_Descriptor,        // 5801
+    &DCRemove_Descriptor,          // 5802
+    &Delay_Descriptor,             // 5803
+    &Distortion_Descriptor,        // 5804
+    &ImpulseGen_Descriptor,        // 5805
+    &ImpulseGenVC_Descriptor,      // 5806
+    &LFOAllPass_Descriptor,        // 5807
+    &LFOBandpass_Descriptor,       // 5808
+    &LFOBandpass5_Descriptor,      // 5809
+    &LFODelay_Descriptor,          // 5810
+    &LFRBandpass5_Descriptor,      // 5811
+    &LPVocoder_Descriptor,         // 5812
+    &Phaser_Descriptor,            // 5813
+    &Phaser2_Descriptor,           // 5814
+    &RBJBandpassBW_Descriptor,     // 5815
+    &RBJBandpassQ_Descriptor,      // 5816
+    &RBJHighpassQ_Descriptor,      // 5817
+    &RBJHighpassQ12_Descriptor,    // 5818
+    &RBJHighShelf_Descriptor,      // 5819
+    &RBJLowpassQ_Descriptor,       // 5820
+    &RBJLowpassQ12_Descriptor,     // 5821
+    &RBJLowShelf_Descriptor,       // 5822
+    &RBJPeakingEQ_Descriptor,      // 5823
+    &Reverb20AdjStereo_Descriptor, // 5824
+    &SineWave_Descriptor,          // 5825
+    &BW_LP_Descriptor,             // 5826
+    &BW_HP_Descriptor,             // 5827
+    NULL
 };
 
 const LADSPA_Descriptor *ladspa_descriptor(unsigned long Index)
 {
-	if(Index<N_PLUGINS){
-		return dTable[Index];
-	}else{
-		return NULL;
-	}
+    return dTable[Index];
 }
