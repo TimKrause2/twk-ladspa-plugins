@@ -1,0 +1,48 @@
+Hbq(s) := 1/(s^2 + c*s +1);
+
+sz: K*(z-1)/(z+1);
+
+Hbqz: Hbq(sz);
+
+ratsimp(Hbqz);
+
+Hsp(s) := 1/(s+1);
+
+Hspz: Hsp(sz);
+
+ratsimp(Hspz);
+
+s_hp: 1/K*(z+1)/(z-1);
+
+Hbqhpz: Hbq(s_hp);
+
+ratsimp(Hbqhpz);
+
+Hsphpz: Hsp(s_hp);
+
+ratsimp(Hsphpz);
+
+sz_bp: Q*(sz+1/sz);
+
+Hbp: Hbq(sz_bp);
+
+ratsimp(Hbp);
+
+Hspbp: Hsp(sz_bp);
+
+ratsimp(Hspbp);
+
+s_bs: 1/(Q*(s+1/s));
+sz_bs: 1/(Q*(sz+1/sz));
+
+Hsbq_bs: Hbq(s_bs);
+Hzbq_bs: Hbq(sz_bs);
+
+ratsimp(Hsbq_bs);
+
+ratsimp(Hzbq_bs);
+
+Hspbs: Hsp(sz_bs);
+
+ratsimp(Hspbs);
+
