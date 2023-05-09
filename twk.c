@@ -27,6 +27,8 @@
 #include "sinewave.h"
 #include "bw_lp.h"
 #include "bw_hp.h"
+#include "bw_bp.h"
+#include "bw_bs.h"
 
 const LADSPA_Descriptor *dTable[]=
 {
@@ -57,6 +59,8 @@ const LADSPA_Descriptor *dTable[]=
     &SineWave_Descriptor,          // 5825
     &BW_LP_Descriptor,             // 5826
     &BW_HP_Descriptor,             // 5827
+    &BW_BP_Descriptor,             // 5828
+    &BW_BS_Descriptor,             // 5829
     NULL
 };
 

@@ -1,0 +1,1 @@
+extern LADSPA_Descriptor BW_BP_Descriptor;
