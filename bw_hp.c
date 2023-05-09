@@ -5,7 +5,7 @@
 
 /*
  *                    s^2
- *  Hlp(s) = --------------------
+ *  Hhp(s) = --------------------
  *              s^2 + c*s + 1
  *
  * Transfer function for a single biquad filter
