@@ -1,0 +1,1 @@
+extern const LADSPA_Descriptor Ellip_HP_Descriptor;

@@ -1,0 +1,19 @@
+Hlp_stage_s(s) := (s^2 + cn0)/(s^2 + cd1*s + cd0);
+
+sz : K*(z-1)/(z+1);
+
+Hlp_stage_z : Hlp_stage_s(sz);
+
+ratsimp(Hlp_stage_z);
+
+Hhp_stage_z : Hlp_stage_s(1/sz);
+
+ratsimp(Hhp_stage_z);
+
+Hbp_stage_z : Hlp_stage_s(Q*(sz+1/sz));
+
+ratsimp(Hbp_stage_z);
+
+Hbs_stage_z : Hlp_stage_s(1/(Q*(sz+1/sz)));
+
+ratsimp(Hbs_stage_z);

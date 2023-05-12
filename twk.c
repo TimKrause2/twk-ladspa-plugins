@@ -29,6 +29,10 @@
 #include "bw_hp.h"
 #include "bw_bp.h"
 #include "bw_bs.h"
+#include "elliptical_lp.h"
+#include "elliptical_hp.h"
+#include "elliptical_bp.h"
+#include "elliptical_bs.h"
 
 const LADSPA_Descriptor *dTable[]=
 {
@@ -61,6 +65,10 @@ const LADSPA_Descriptor *dTable[]=
     &BW_HP_Descriptor,             // 5827
     &BW_BP_Descriptor,             // 5828
     &BW_BS_Descriptor,             // 5829
+    &Ellip_LP_Descriptor,          // 5830
+    &Ellip_HP_Descriptor,          // 5831
+    &Ellip_BP_Descriptor,          // 5832
+    &Ellip_BS_Descriptor,          // 5833
     NULL
 };
 
