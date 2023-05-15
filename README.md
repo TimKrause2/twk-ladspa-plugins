@@ -27,24 +27,23 @@ the plugin 'twk.so'.
 
 Copy 'twk.so' to a directory referenced by the environment
 variable 'LADSPA_PATH'. For example:
+```
+mkdir /home/tim/ladspa
+cp twk.so /home/tim/ladspa
+export LADSPA_PATH=/usr/lib/ladspa:/home/tim/ladspa
+```
 
-	mkdir /home/tim/ladspa
-	cp twk.so /home/tim/ladspa
-	export LADSPA_PATH=/usr/lib/ladspa:/home/tim/ladspa
-	
 And then run your LADSPA program. To make the export permanent
-put
-
-	export LADSPA_PATH=/usr/lib/ladspa:/home/tim/ladspa
-	
+put	`export LADSPA_PATH=/usr/lib/ladspa:/home/tim/ladspa` 
 at the end of your .bashrc file.
 
 ## Prerequists to compile
 
-- GNU math library
-- ladspa-dev
+- GNU math library. Uses GNU specific functions and constants
+- ladspa-dev  This is for ladspa.h.
 - make
-
+- maxima   If you want to verify the equations.
+- scilab   If you want to compute coefficients.
 
 
 
