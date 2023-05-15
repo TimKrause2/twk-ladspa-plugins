@@ -16,8 +16,16 @@ variable 'LADSPA_PATH'. For example:
 	
 And then run your LADSPA program. To make the export permanent
 put
+
 	export LADSPA_PATH=/usr/lib/ladspa:/home/tim/ladspa
+	
 at the end of your .bashrc file.
+
+## Prerequists to compile
+
+- GNU math library
+- ladspa-dev
+- make
 
 
 
