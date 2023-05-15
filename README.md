@@ -1,5 +1,23 @@
 # twk-ladspa-plugins
 
+## Plugins
+
+- Compressor/Expandor
+- DC remove
+- various delays
+- various band pass filters
+- various band stop filters
+- various low pass filters
+- various high pass filters
+- low shelf
+- high shelf
+- peaking EQ
+- Linear Prediction based vocoder
+- phasers
+- adjustable reverb
+- sinewave generator
+- various impulse train generators
+
 ## Compilation
 
 In the source directory just type 'make'. This will compile
