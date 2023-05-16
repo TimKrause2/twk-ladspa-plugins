@@ -20,13 +20,13 @@
 
 ## Compilation
 
-In the source directory just type 'make'. This will compile
-the plugin 'twk.so'.
+In the source directory just type `make`. This will compile
+the plugin `twk.so`.
 
 ## Usage
 
-Copy 'twk.so' to a directory referenced by the environment
-variable 'LADSPA_PATH'. For example:
+Copy `twk.so` to a directory referenced by the environment
+variable `LADSPA_PATH`. For example:
 ```
 mkdir /home/tim/ladspa
 cp twk.so /home/tim/ladspa
