@@ -39,11 +39,23 @@ at the end of your .bashrc file.
 
 ## Prerequists to compile
 
-- GNU math library. Uses GNU specific functions and constants
-- ladspa-dev  This is for ladspa.h.
+- GNU math library
+
+    Uses GNU specific functions and constant
+
+- ladspa-dev
+
+    This is for ladspa.h
+
 - make
-- maxima   If you want to verify the equations.
-- scilab   If you want to compute coefficients.
+- maxima
+
+    If you want to verify the equations.
+    
+- scilab
+
+    If you want to compute coefficients.
+
 
 
 
