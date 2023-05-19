@@ -36,6 +36,10 @@
 - 5832 Elliptical band pass filter
 - 5833 Elliptical band stop filter
 
+RBJ = Robert Bristow-Johnson of [Audio-EQ-Cookbook.txt](https://github.com/TimKrause2/twk-ladspa-plugins/blob/main/Audio-EQ-Cookbook.txt)
+
+
+
 ## Compilation
 
 In the source directory just type `make`. This will compile
