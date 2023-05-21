@@ -45,6 +45,22 @@ RBJ = Robert Bristow-Johnson of [Audio-EQ-Cookbook.txt](https://github.com/TimKr
 In the source directory just type `make`. This will compile
 the plugin `twk.so`.
 
+### Other make targets
+
+The makefile has a few other targets.
+
+	$ make asm
+	
+To generate the assembly of the source files.
+
+	$ make butt_formulas
+	
+To run maxima and display the Butterworth stages coefficients.
+
+	$ make ellip_formulas
+	
+To rum maxima and display the elliptical stages coefficients.
+
 ## Usage
 
 Copy `twk.so` to a directory referenced by the environment
