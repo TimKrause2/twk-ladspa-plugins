@@ -1,48 +1,36 @@
-Hbq(s) := 1/(s^2 + c*s +1);
+batch("print_coefficients.mac");
+
+Hlp_bq_s(s) := 1/(s^2 + c*s +1);
+Hlp_sp_s(s) := 1/(s+1);
 
 sz: K*(z-1)/(z+1);
 
-Hbqz: Hbq(sz);
+Hlp_bq_z: Hlp_bq_s(sz);
+rat_print_coeff_reverse(Hlp_bq_z,z);
 
-ratsimp(Hbqz);
+Hlp_sp_z: Hlp_sp_s(sz);
+rat_print_coeff_reverse(Hlp_sp_z,z);
 
-Hsp(s) := 1/(s+1);
+sz_hp: 1/sz;
 
-Hspz: Hsp(sz);
+Hhp_bq_z: Hlp_bq_s(sz_hp);
+rat_print_coeff_reverse(Hhp_bq_z,z);
 
-ratsimp(Hspz);
-
-s_hp: 1/K*(z+1)/(z-1);
-
-Hbqhpz: Hbq(s_hp);
-
-ratsimp(Hbqhpz);
-
-Hsphpz: Hsp(s_hp);
-
-ratsimp(Hsphpz);
+Hhp_sp_z: Hlp_sp_s(sz_hp);
+rat_print_coeff_reverse(Hhp_sp_z,z);
 
 sz_bp: Q*(sz+1/sz);
 
-Hbp: Hbq(sz_bp);
+Hbp_bq_z: Hlp_bq_s(sz_bp);
+rat_print_coeff_reverse(Hbp_bq_z,z);
 
-ratsimp(Hbp);
+Hbp_sp_z: Hlp_sp_s(sz_bp);
+rat_print_coeff_reverse(Hbp_sp_z,z);
 
-Hspbp: Hsp(sz_bp);
-
-ratsimp(Hspbp);
-
-s_bs: 1/(Q*(s+1/s));
 sz_bs: 1/(Q*(sz+1/sz));
 
-Hsbq_bs: Hbq(s_bs);
-Hzbq_bs: Hbq(sz_bs);
+Hbs_bq_z: Hlp_bq_s(sz_bs);
+rat_print_coeff_reverse(Hbs_bq_z,z);
 
-ratsimp(Hsbq_bs);
-
-ratsimp(Hzbq_bs);
-
-Hspbs: Hsp(sz_bs);
-
-ratsimp(Hspbs);
-
+Hbs_sp_z: Hlp_sp_s(sz_bs);
+rat_print_coeff_reverse(Hbs_sp_z,z);

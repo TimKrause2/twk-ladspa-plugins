@@ -1,0 +1,18 @@
+poly_print_coeff_reverse(p,z,cp) :=
+	block ([N],N:hipow(p,z),
+	for i: N step -1 thru 0 do block([j,c],
+		j:N-i, c:coeff(p,z,i),
+		print(cp,j," = ",c))
+	);
+
+rat_print_coeff_reverse(r,z) :=
+	block ([r_rs,r_num, r_den],
+	r_rs : ratsimp(r,z),
+	r_num : num(r_rs),
+	r_den : denom(r_rs),
+	print("Denominator coefficients"),
+	poly_print_coeff_reverse(r_den, z, "a"),
+	print("Numerator coefficients"),
+	poly_print_coeff_reverse(r_num, z, "b")
+	);
+
