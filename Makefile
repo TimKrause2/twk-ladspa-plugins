@@ -28,6 +28,12 @@ $(PLUIGIN_ASM):$(PLUGIN_SOURCES)
 
 asm:$(PLUGIN_ASM)
 
+butt_formulas:
+	maxima -b "butterworth_stages.mac"
+	
+ellip_formulas:
+	maxima -b "elliptical_biquad_stage.mac"
+	
 libfad:
 	make -C fad
 	
