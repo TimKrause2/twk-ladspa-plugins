@@ -79,14 +79,14 @@ static void Delay_run( LADSPA_Handle p_instance, unsigned long p_sample_count )
 		l_pDelay->m_pdata[l_pDelay->m_write_index] = *l_psrc;
 		// calculate the start indicis and sample fractions
 		// for the dry and wet channels
-		long l_dry_index = l_pDelay->m_write_index - (FadNwindow()/2);
+        long l_dry_index = l_pDelay->m_write_index - (FadNwindow()/2) - 1;
 		if( l_dry_index < 0 )
 			l_dry_index += l_pDelay->m_Nbuf;
 		float l_dry = l_pDelay->m_pdata[l_dry_index];
-		float  l_delay = *l_pDelay->m_pport[PORT_DELAY]/1000.0f * l_pDelay->m_sample_rate;
-		long l_delay_int = (long)ceilf(l_delay);
-		float l_delay_frac = l_delay_int - l_delay;
-		long l_wet_index = l_pDelay->m_write_index - FadNwindow() - l_delay_int;
+        float  l_delay = -*l_pDelay->m_pport[PORT_DELAY]/1000.0f * l_pDelay->m_sample_rate;
+        long l_delay_int = (long)floorf(l_delay);
+        float l_delay_frac = l_delay - l_delay_int;
+        long l_wet_index = l_pDelay->m_write_index - FadNwindow() + l_delay_int;
 		if( l_wet_index < 0 )
 			l_wet_index += l_pDelay->m_Nbuf;
 		float l_wet = FadSample( l_pDelay->m_pdata, l_wet_index, l_pDelay->m_Nbuf, l_delay_frac );

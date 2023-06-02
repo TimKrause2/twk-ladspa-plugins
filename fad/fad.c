@@ -4,7 +4,9 @@
 
 float FadSample( float *p_pBuf, long p_start, long p_Nbuf, float p_alpha )
 {
-	register float *l_psrc = &p_pBuf[p_start];
+    if(p_alpha < 0.0) p_alpha=0.0;
+    if(p_alpha >=1.0) p_alpha=1.0-1.0f/FAD_FSS;
+    register float *l_psrc = &p_pBuf[p_start];
 	long l_Nloop1;
 	long l_Nloop2;
 	

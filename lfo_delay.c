@@ -1,5 +1,6 @@
 #include <fad.h>
 #include <ladspa.h>
+#define _GNU_SOURCE
 #include <math.h>
 #include <stdlib.h>
 
@@ -89,17 +90,17 @@ static void LFODelay_run( LADSPA_Handle p_instance, unsigned long p_sample_count
 		l_pLFODelay->m_pdata[l_pLFODelay->m_write_index] = *l_psrc;
 		// calculate the start indicis and sample fractions
 		// for the dry and wet channels
-		long l_dry_index = l_pLFODelay->m_write_index - (FadNwindow()/2);
+        long l_dry_index = l_pLFODelay->m_write_index - (FadNwindow()/2) - 1;
 		if( l_dry_index < 0 )
 			l_dry_index += l_pLFODelay->m_Nbuf;
 		float l_dry = l_pLFODelay->m_pdata[l_dry_index];
-		float l_delay = l_delay0*(1.0f + sinf( l_pLFODelay->m_lfo_theta ) * l_lfo_amount);
-		long l_delay_int = (long)ceilf(l_delay);
-		float l_delay_frac = l_delay_int - l_delay;
-		long l_wet_index = l_pLFODelay->m_write_index - FadNwindow() - l_delay_int;
+        float l_delay = -l_delay0*(1.0f + sinf( l_pLFODelay->m_lfo_theta ) * l_lfo_amount);
+        long l_delay_int = (long)floorf(l_delay);
+        float l_delay_frac = l_delay - l_delay_int;
+        long l_wet_index = l_pLFODelay->m_write_index - FadNwindow() + l_delay_int;
 		if( l_wet_index < 0 )
 			l_wet_index += l_pLFODelay->m_Nbuf;
-		float l_wet = FadSample( l_pLFODelay->m_pdata, l_wet_index, l_pLFODelay->m_Nbuf, l_delay_frac );
+        float l_wet = FadSample( l_pLFODelay->m_pdata, l_wet_index, l_pLFODelay->m_Nbuf, l_delay_frac );
 
 		*l_pdst = l_wet*l_wet_gain + l_dry*l_dry_gain;
 		// perform the feedback
@@ -114,8 +115,8 @@ static void LFODelay_run( LADSPA_Handle p_instance, unsigned long p_sample_count
 		if( l_pLFODelay->m_write_index == l_pLFODelay->m_Nbuf )
 			l_pLFODelay->m_write_index = 0;
 		l_pLFODelay->m_lfo_theta += l_dtheta;
-		if( l_pLFODelay->m_lfo_theta >= 2.0*M_PI )
-			l_pLFODelay->m_lfo_theta -= 2.0*M_PI;
+        if( l_pLFODelay->m_lfo_theta >= 2.0f*M_PIf )
+            l_pLFODelay->m_lfo_theta -= 2.0f*M_PIf;
 	}
 }
 

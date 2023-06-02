@@ -1,9 +1,10 @@
 #include <fad.h>
 #include <ladspa.h>
+#define _GNU_SOURCE
 #include <math.h>
 #include <stdlib.h>
 
-#define DELAY_MAX 10.0
+#define DELAY_MAX 10.0f
 
 
 enum {
@@ -75,7 +76,7 @@ static void LFOAllPass_run( LADSPA_Handle p_instance, unsigned long p_sample_cou
 	LADSPA_Data *l_psrc = l_pLFOAllPass->m_pport[PORT_IN];
 	LADSPA_Data *l_pdst = l_pLFOAllPass->m_pport[PORT_OUT];
 	long l_sample;
-	float l_dtheta = 2.0f * M_PI * *l_pLFOAllPass->m_pport[PORT_LFO_FREQUENCY] / l_pLFOAllPass->m_sample_rate;
+    float l_dtheta = 2.0f * M_PIf * *l_pLFOAllPass->m_pport[PORT_LFO_FREQUENCY] / l_pLFOAllPass->m_sample_rate;
 	float l_g = *l_pLFOAllPass->m_pport[PORT_FEEDBACK];
 	
 	for( l_sample=0;l_sample<p_sample_count;l_sample++){
@@ -84,7 +85,7 @@ static void LFOAllPass_run( LADSPA_Handle p_instance, unsigned long p_sample_cou
 		if(l_delay<FadNwindow()/2)l_delay=FadNwindow()/2;
 		long l_delay_int = (long)ceilf(l_delay);
 		float l_delay_frac = l_delay_int - l_delay;
-		long l_wet_index = l_pLFOAllPass->m_write_index - FadNwindow()/2 - l_delay_int;
+        long l_wet_index = l_pLFOAllPass->m_write_index - FadNwindow()/2 - 1 - l_delay_int;
 		if( l_wet_index < 0 )
 			l_wet_index += l_pLFOAllPass->m_Nbuf;
 		LADSPA_Data l_H = FadSample( l_pLFOAllPass->m_pdata, l_wet_index, l_pLFOAllPass->m_Nbuf, l_delay_frac );
@@ -101,8 +102,8 @@ static void LFOAllPass_run( LADSPA_Handle p_instance, unsigned long p_sample_cou
 		if( l_pLFOAllPass->m_write_index == l_pLFOAllPass->m_Nbuf )
 			l_pLFOAllPass->m_write_index = 0;
 		l_pLFOAllPass->m_lfo_theta += l_dtheta;
-		if( l_pLFOAllPass->m_lfo_theta >= 2.0*M_PI )
-			l_pLFOAllPass->m_lfo_theta -= 2.0*M_PI;
+        if( l_pLFOAllPass->m_lfo_theta >= 2.0f*M_PIf )
+            l_pLFOAllPass->m_lfo_theta -= 2.0f*M_PIf;
 	}
 }
 

@@ -1,16 +1,16 @@
 Nwindow = 32;
 Fss = 1024;
 
-n=[-(Nwindow/2):(Nwindow/2)-1];
+n=[-((Nwindow/2)-1):(Nwindow/2)];
+
+clear table
 
 for i=[0:Fss-1]
 	alpha = i/Fss;
-	table(i+1,1:Nwindow) = sinc( %pi*(n-alpha) ).*window('hm',Nwindow);
+    f_sinc = sinc( %pi*(n-alpha) );
+    f_windowed = f_sinc .* window('hm',Nwindow);
+	table(i+1,1:Nwindow) = f_windowed;
 end
-
-alpha = 1.0 / max(abs(table));
-table = table * alpha;
-
 
 [fd,err] = mopen( "fad_table.h", "wt" );
 if err~=0 then

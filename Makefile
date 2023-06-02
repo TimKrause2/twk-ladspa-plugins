@@ -14,7 +14,7 @@ PLUGIN_ASM=$(PLUGIN_SOURCES:.c=.s)
 
 all:libfad twk.so
 
-twk.so:twk.o $(PLUGIN_OBJECTS)
+twk.so:twk.o $(PLUGIN_OBJECTS) fad/libfad.a
 	gcc -shared -o twk.so twk.o $(PLUGIN_OBJECTS) -lm -L fad -lfad
 	
 twk.o:twk.c
