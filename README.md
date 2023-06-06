@@ -34,7 +34,7 @@
 - 5830 Elliptical low pass filter
 - 5831 Elliptical high pass filter
 - 5832 Elliptical band pass filter
-- 5833 Elliptical band stop filter'
+- 5833 Elliptical band stop filter
 - 5834 Pitch Shifter
 
 RBJ = Robert Bristow-Johnson of [Audio-EQ-Cookbook.txt](https://github.com/TimKrause2/twk-ladspa-plugins/blob/main/Audio-EQ-Cookbook.txt)
