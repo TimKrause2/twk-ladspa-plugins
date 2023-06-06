@@ -1,0 +1,1 @@
+extern LADSPA_Descriptor PShift_Descriptor;

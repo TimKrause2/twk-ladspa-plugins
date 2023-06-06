@@ -7,7 +7,7 @@ rbj_bandpass_bw.c rbj_bandpass.c rbj_highpass.c rbj_highpass12order.c \
 rbj_highshelf.c rbj_lowpass.c rbj_lowpass12order.c rbj_lowshelf.c \
 rbj_peakingEQ.c reverb20adjstereo.c sinewave.c bw_lp.c bw_hp.c \
 bw_bp.c bw_bs.c elliptical_lp.c elliptical_hp.c elliptical_bp.c \
-elliptical_bs.c
+elliptical_bs.c pitch_shifter.c
 
 PLUGIN_OBJECTS=$(PLUGIN_SOURCES:.c=.o)
 PLUGIN_ASM=$(PLUGIN_SOURCES:.c=.s)

@@ -33,6 +33,7 @@
 #include "elliptical_hp.h"
 #include "elliptical_bp.h"
 #include "elliptical_bs.h"
+#include "pitch_shifter.h"
 
 const LADSPA_Descriptor *dTable[]=
 {
@@ -69,6 +70,7 @@ const LADSPA_Descriptor *dTable[]=
     &Ellip_HP_Descriptor,          // 5831
     &Ellip_BP_Descriptor,          // 5832
     &Ellip_BS_Descriptor,          // 5833
+    &PShift_Descriptor,            // 5834
     NULL
 };
 
