@@ -1,7 +1,53 @@
 batch("print_coefficients.mac");
+/*
+The elliptic filter biquad stage prototype transfer function.
 
+Each stage is the ratio of two quadratic functions where each
+quadratic function is the product of two linear binomials.
+
+               (s - zero(i))*(s - conj(zero(i)))
+Hlp_stage(i) = ---------------------------------
+               (s - pole(i))*(s - conj(pole(i)))
+
+where:
+    zero(i) = zero for stage i
+    pole(i) = pole for stage i
+    conj(a) = conjugate of a
+
+Expanding one of the polynomials.
+
+    (s - a)*(s - conj(a)) = s^2 -(a+conj(a))*s + a*conj(a)
+                          = s^2 - 2*real(a)*s + a*conj(a)
+
+    real(a) = real component of a
+
+Since the zeros are purely imaginary for the elliptic filter the
+coefficient for s is zero and the final form for the stage is:
+
+                      s^2 + zero(i)*conj(zero(i))
+Hlp_stage(i) = ------------------------------------------------
+                s^2 - 2*real(pole(i))*s + pole(i)*conj(pole(i))
+
+                   s^2 + cn0
+             = -------------------
+                s^2 + cd1*s + cd0
+
+    cn0 = "coefficient numerator" power 0
+    cd0 = "coefficient denominator" power 0
+    cd1 = "coefficient denominator" power 1
+*/
 Hlp_stage_s(s) := (s^2 + cn0)/(s^2 + cd1*s + cd0);
 
+/*
+To obtain the discrete time domain filter from the Laplace
+representation apply the bilinear transform with frequency
+warping.
+
+
+              1          1 - z^-1         z - 1
+s  <-  -------------- * ---------- = K * -------
+        tan(omega/2)     1 + z^-1         z + 1
+*/
 sz : K*(z-1)/(z+1);
 
 Hlp_stage_z : Hlp_stage_s(sz);
@@ -9,16 +55,38 @@ Hlp_stage_z : Hlp_stage_s(sz);
 ratsimp(Hlp_stage_z);
 rat_print_coeff_reverse(Hlp_stage_z,z);
 
+/*
+For the high pass filter the following transform is
+used:
+
+s <- 1/s
+*/
 Hhp_stage_z : Hlp_stage_s(1/sz);
 
 ratsimp(Hhp_stage_z);
 rat_print_coeff_reverse(Hhp_stage_z,z);
 
+/*
+For the band pass filter the following transform is used:
+
+s <- Q*(s + 1/s)
+
+This transform doubles the order of the stage.
+*/
 Hbp_stage_z : Hlp_stage_s(Q*(sz+1/sz));
 
 ratsimp(Hbp_stage_z);
 rat_print_coeff_reverse(Hbp_stage_z,z);
 
+/*
+For the band stop filter the following transform is used:
+
+          1
+s <- ------------
+      Q*(s + 1/s)
+
+This transform doubles the order of the stage.
+*/
 Hbs_stage_z : Hlp_stage_s(1/(Q*(sz+1/sz)));
 
 ratsimp(Hbs_stage_z);

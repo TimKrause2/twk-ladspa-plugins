@@ -5,16 +5,54 @@ cd(homepath);
 Nstages = 5;
 N=2*Nstages;
 fdesign="ellip";
-rp=[0.01,0.0005];
+ripple=[0.01,0.0005];
 omega=1.0;
-[Hs,Hs_poles,Hs_zeros,Hs_gain] = analpf(N,fdesign,rp,omega);
-fmin = 0.01;
-fmax = 100.0;
+[Hs,Hs_poles,Hs_zeros,Hs_gain] = analpf(N,fdesign,ripple,omega);
+fmin = 0.01/2/%pi;
+fmax = 100.0/2/%pi;
 Nsteps = 2000;
 step = (log10(fmax)-log10(fmin))/Nsteps;
 [f,repf] = repfreq(Hs, fmin, fmax, step);
 clf();
-bode(f,repf);
+bode(f,repf,"rad");
+
+/*
+The elliptic filter biquad stage prototype transfer function.
+
+Each stage is the ratio of two quadratic functions where each
+quadratic function is the product of two linear binomials.
+
+               (s - zero(i))*(s - conj(zero(i)))
+Hlp_stage(i) = ---------------------------------
+               (s - pole(i))*(s - conj(pole(i)))
+
+where:
+    zero(i) = zero for stage i
+    pole(i) = pole for stage i
+    conj(a) = conjugate of a
+
+Expanding one of the polynomials.
+
+    (s - a)*(s - conj(a)) = s^2 -(a+conj(a))*s + a*conj(a)
+                          = s^2 - 2*real(a)*s + a*conj(a)
+
+    real(a) = real component of a
+
+Since the zeros are purely imaginary for the elliptic filter the
+coefficient for s is zero and the final form for the stage is:
+
+                      s^2 + zero(i)*conj(zero(i))
+Hlp_stage(i) = ------------------------------------------------
+                s^2 - 2*real(pole(i))*s + pole(i)*conj(pole(i))
+
+                   s^2 + cnum0
+             = -------------------
+                s^2 + cden1*s + cden0
+
+    cnum0 = "coefficient numerator" power 0 = zero(i)*conj(zero(i))
+    cden0 = "coefficient denominator" power 0 = pole(i)*conj(pole(i))
+    cden1 = "coefficient denominator" power 1 = -2*real(pole(i))
+*/
 
 [fd,err] = mopen("ellip_coeff.h","w");
 if err<>0 then
