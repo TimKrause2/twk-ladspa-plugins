@@ -19,7 +19,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define RAND_FLOAT ((float)rand()/RAND_MAX)
+#define RAND_FLOAT drand48()
 #define FREQUENCY_MIN 10.0f
 #define FREQUENCY_MAX 20.0e3f
 #define PERIOD_MIN 0.01f
@@ -33,6 +33,7 @@
 #define GAIN_MIN -60.0f
 #define GAIN_MAX  24.0f
 
+#define N_BUFFER 8192
 
 enum {
 	PORT_IN,
@@ -82,19 +83,70 @@ typedef struct
 {
 	LADSPA_Data m_z1;
 	LADSPA_Data m_z2;
+    LADSPA_Data m_a1;
+    LADSPA_Data m_a2;
+    LADSPA_Data m_R;
+    LADSPA_Data m_G;
     LADSPA_Data m_lfr_frequency;
     LADSPA_Data m_lfr_frequency1;
     LADSPA_Data m_lfr_dfrequency;
 	unsigned long m_lfr_sample;
 	unsigned long m_lfr_sample_count;
+    Bandpass_Port_Data *m_port_data;
 } Filter_Data;
 
 typedef struct
 {
     LADSPA_Data  m_sample_rate;
-	LADSPA_Data *m_pport[PORT_NPORTS];
-	Filter_Data  m_filters[5];
+    LADSPA_Data *m_pport[PORT_NPORTS];
+    Filter_Data  m_filters[5];
 } Bandpass_Data;
+
+static void Filter_init(Filter_Data *filter, Bandpass_Port_Data *port_data)
+{
+    filter->m_z1 = 0.0f;
+    filter->m_z2 = 0.0f;
+    filter->m_lfr_frequency1 = 1000.0f;
+    filter->m_lfr_sample = 0;
+    filter->m_lfr_sample_count = 0;
+    filter->m_port_data = port_data;
+}
+
+static void Filter_set(Filter_Data *filter, LADSPA_Data sample_rate)
+{
+    filter->m_R = expf(-M_PIf * *filter->m_port_data->m_bandwidth / sample_rate );
+    filter->m_G = 1.0f - filter->m_R;
+    filter->m_G *= exp10f( *filter->m_port_data->m_gain / 20.0f );
+    filter->m_a2 = filter->m_R*filter->m_R;
+}
+
+static LADSPA_Data Filter_evaluate(Filter_Data *filter, Bandpass_Data *bp, LADSPA_Data x)
+{
+
+    if( filter->m_lfr_sample == filter->m_lfr_sample_count ){
+        // reached the end of the last period
+        filter->m_lfr_frequency = filter->m_lfr_frequency1;
+        filter->m_lfr_frequency1 = *filter->m_port_data->m_frequency
+                                      + RAND_FLOAT * *filter->m_port_data->m_lfr_amount;
+        filter->m_lfr_sample_count =
+            (*bp->m_pport[PORT_PERIOD] +
+             RAND_FLOAT * *bp->m_pport[PORT_PERIOD_MOD])*
+            bp->m_sample_rate;
+        filter->m_lfr_sample = 0;
+        filter->m_lfr_dfrequency =
+            (filter->m_lfr_frequency1-filter->m_lfr_frequency)/filter->m_lfr_sample_count;
+    }
+    LADSPA_Data l_theta = 2.0f * M_PIf * filter->m_lfr_frequency / bp->m_sample_rate;
+    filter->m_a1 = -2.0f * filter->m_R * cosf(l_theta);
+    LADSPA_Data m = x - filter->m_a1*filter->m_z1 - filter->m_a2*filter->m_z2;
+    LADSPA_Data y = filter->m_G*(m - filter->m_R*filter->m_z2);
+    filter->m_z2 = filter->m_z1;
+    filter->m_z1 = m;
+    filter->m_lfr_frequency += filter->m_lfr_dfrequency;
+    filter->m_lfr_sample++;
+    return y;
+}
+
 
 static LADSPA_Handle Bandpass_instantiate(
 	const struct _LADSPA_Descriptor *p_pDescriptor,
@@ -104,14 +156,12 @@ static LADSPA_Handle Bandpass_instantiate(
 	if( l_pBandpass ){
 		l_pBandpass->m_sample_rate = p_sample_rate;
 		Filter_Data *l_pFilter = l_pBandpass->m_filters;
-		unsigned long l_filter;
+        Bandpass_Port_Data *l_pPortData = (Bandpass_Port_Data*)&l_pBandpass->m_pport[PORT_FREQUENCY1];
+        unsigned long l_filter;
 		for(l_filter=0;l_filter<5;l_filter++){
-            l_pFilter->m_z1 = 0.0f;
-            l_pFilter->m_z2 = 0.0f;
-            l_pFilter->m_lfr_frequency1 = 1000.0f;
-			l_pFilter->m_lfr_sample = 0;
-			l_pFilter->m_lfr_sample_count = 0;
+            Filter_init(l_pFilter, l_pPortData);
 			l_pFilter++;
+            l_pPortData++;
 		}
 	}
 	return (LADSPA_Handle)l_pBandpass;
@@ -133,51 +183,27 @@ static void Bandpass_run(
 	Bandpass_Data *l_pBandpass = (Bandpass_Data*)p_pInstance;
 	
 	unsigned long l_sample;
-	LADSPA_Data *l_psrc = l_pBandpass->m_pport[PORT_IN];
-	LADSPA_Data *l_pdst = l_pBandpass->m_pport[PORT_OUT];
-	for( l_sample = 0; l_sample < p_sample_count; l_sample++ ){
-        *l_pdst++ = 0.0f;
-	}
+    LADSPA_Data *l_psrc = l_pBandpass->m_pport[PORT_IN];
+    LADSPA_Data *l_pdst = l_pBandpass->m_pport[PORT_OUT];
 	
 	unsigned long l_filter;
 	Filter_Data *l_pFilter = l_pBandpass->m_filters;
-	Bandpass_Port_Data *l_pPortData = (Bandpass_Port_Data*)&l_pBandpass->m_pport[PORT_FREQUENCY1];
 	for( l_filter=0;l_filter<5;l_filter++){
-		l_psrc = l_pBandpass->m_pport[PORT_IN];
-		l_pdst = l_pBandpass->m_pport[PORT_OUT];
-        LADSPA_Data l_R = expf(-M_PIf * *l_pPortData->m_bandwidth / l_pBandpass->m_sample_rate );
-        LADSPA_Data l_G = 1.0f - l_R;
-        l_G *= exp10f( *l_pPortData->m_gain / 20.0f );
-		LADSPA_Data l_a2 = l_R*l_R;
-	
-		for( l_sample = 0; l_sample < p_sample_count; l_sample++ ){
-			if( l_pFilter->m_lfr_sample == l_pFilter->m_lfr_sample_count ){
-				// reached the end of the last period
-                l_pFilter->m_lfr_frequency = l_pFilter->m_lfr_frequency1;
-                l_pFilter->m_lfr_frequency1 = *l_pPortData->m_frequency
-                        + RAND_FLOAT * *l_pPortData->m_lfr_amount;
-				l_pFilter->m_lfr_sample_count =
-					(*l_pBandpass->m_pport[PORT_PERIOD] +
-                    RAND_FLOAT * *l_pBandpass->m_pport[PORT_PERIOD_MOD])*
-                        l_pBandpass->m_sample_rate;
-				l_pFilter->m_lfr_sample = 0;
-                l_pFilter->m_lfr_dfrequency =
-                        (l_pFilter->m_lfr_frequency1-l_pFilter->m_lfr_frequency)/l_pFilter->m_lfr_sample_count;
-			}
-            LADSPA_Data l_theta = 2.0f * M_PIf * l_pFilter->m_lfr_frequency / l_pBandpass->m_sample_rate;
-            LADSPA_Data l_a1 = -2.0f * l_R * cosf(l_theta);
-			LADSPA_Data m = *l_psrc - l_a1*l_pFilter->m_z1 - l_a2*l_pFilter->m_z2;
-			*l_pdst += l_G*(m - l_R*l_pFilter->m_z2);
-			l_pFilter->m_z2 = l_pFilter->m_z1;
-			l_pFilter->m_z1 = m;
-			l_psrc++;
-			l_pdst++;
-            l_pFilter->m_lfr_frequency += l_pFilter->m_lfr_dfrequency;
-			l_pFilter->m_lfr_sample++;
-		}
-		l_pFilter++;
-		l_pPortData++;
-	}
+        Filter_set(l_pFilter, l_pBandpass->m_sample_rate);
+        l_pFilter++;
+    }
+
+    for( l_sample = 0; l_sample < p_sample_count; l_sample++ ){
+        l_pFilter = l_pBandpass->m_filters;
+        LADSPA_Data y = 0.0f;
+        for(int i=0;i<5;i++){
+            y += Filter_evaluate(l_pFilter, l_pBandpass, *l_psrc);
+            l_pFilter++;
+        }
+        *l_pdst = y;
+        l_psrc++;
+        l_pdst++;
+    }
 }
 
 static void Bandpass_cleanup( LADSPA_Handle p_pInstance )

@@ -17,7 +17,7 @@ all:libfad twk.so
 twk.so:twk.o $(PLUGIN_OBJECTS) fad/libfad.a
 	gcc -shared -o twk.so twk.o $(PLUGIN_OBJECTS) -lm -L fad -lfad
 	
-twk.o:twk.c
+twk.o:twk.c $(PLUGIN_SOURCES)
 
 $(PLUGIN_OBJECTS):$(PLUGIN_SOURCES)
 

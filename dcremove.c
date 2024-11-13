@@ -64,14 +64,15 @@ static void DCRemove_run(LADSPA_Handle p_instance, unsigned long p_sample_count)
 	DCRemove_Data *l_pData = (DCRemove_Data*)p_instance;
     LADSPA_Data l_omega = 2.0f*M_PIf* *l_pData->m_pport[PORT_FREQUENCY]/ l_pData->m_sample_rate;
 	LADSPA_Data l_cos = cosf(l_omega);
-    register LADSPA_Data l_a1 = l_cos - sqrtf(l_cos*l_cos - 4.0f*l_cos +3.0f);
+    LADSPA_Data l_a1 = l_cos - sqrtf(l_cos*l_cos - 4.0f*l_cos +3.0f);
 	LADSPA_Data *l_psrc = l_pData->m_pport[PORT_IN];
 	LADSPA_Data *l_pdst = l_pData->m_pport[PORT_OUT];
     LADSPA_Data *l_psrc_end = l_psrc + p_sample_count;
     for(;l_psrc!=l_psrc_end;l_psrc++, l_pdst++){
-		*l_pdst = *l_psrc - l_pData->m_xz + l_a1*l_pData->m_yz;
+        LADSPA_Data y = *l_psrc - l_pData->m_xz + l_a1*l_pData->m_yz;
 		l_pData->m_xz = *l_psrc;
-		l_pData->m_yz = *l_pdst;
+        l_pData->m_yz = y;
+        *l_pdst = y;
 	}
 }
 
