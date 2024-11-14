@@ -10,21 +10,24 @@ enum {
 	PORT_OUT,
 	PORT_FREQUENCY,
 	PORT_AMPLITUDE,
+    PORT_MODULATION,
 	PORT_NPORTS
 };
 
 static LADSPA_PortDescriptor ImpulseGen_PortDescriptors[]=
 {
 	LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO,
-	LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL,
-	LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL
+    LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL,
+    LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL,
+    LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL
 };
 
 static const char* ImpulseGen_PortNames[]=
 {
 	"Output",
 	"Frequency(Hz)",
-    "Amplitude(dBFS)"
+    "Amplitude(dBFS)",
+    "Modulation(%)"
 };
 
 static LADSPA_PortRangeHint ImpulseGen_PortRangeHints[]=
@@ -37,7 +40,11 @@ static LADSPA_PortRangeHint ImpulseGen_PortRangeHints[]=
 	{ LADSPA_HINT_BOUNDED_BELOW |
 		LADSPA_HINT_BOUNDED_ABOVE |
 		LADSPA_HINT_DEFAULT_MAXIMUM,
-        -140.0f, 12.0f}
+        -140.0f, 12.0f},
+    { LADSPA_HINT_BOUNDED_BELOW |
+         LADSPA_HINT_BOUNDED_ABOVE |
+         LADSPA_HINT_DEFAULT_0,
+     0.0f, 50.0f}
 };
 
 static LADSPA_Data sinc(LADSPA_Data x)
@@ -63,6 +70,9 @@ typedef struct
 	int m_i_acc;
 	LADSPA_Data m_Tacc;
 	LADSPA_Data m_Tperiod;
+    LADSPA_Data m_Tpre;
+    LADSPA_Data m_Tpost;
+    int m_pre; // boolean for pre pulse time
 } ImpulseGen;
 
 static LADSPA_Handle ImpulseGen_instantiate(
@@ -76,6 +86,9 @@ static LADSPA_Handle ImpulseGen_instantiate(
 	p_pImpulseGen->m_i_acc = 0;
 	p_pImpulseGen->m_Tacc = 0.0f;
 	p_pImpulseGen->m_Tperiod = 0.0f;
+    p_pImpulseGen->m_Tpre = 1.0f;
+    p_pImpulseGen->m_Tpost = 1.0f;
+    p_pImpulseGen->m_pre = 1;
 	for(int i_ss=0;i_ss<N_SS;i_ss++){
 		LADSPA_Data l_alpha = (LADSPA_Data)i_ss/N_SS;
 		for(int i_window=0;i_window<N_WINDOW;i_window++){
@@ -108,16 +121,44 @@ static void ImpulseGen_impulse(ImpulseGen *p_pImpulseGen, LADSPA_Data p_alpha){
 }
 
 static LADSPA_Data ImpulseGen_evaluate(ImpulseGen *p_pImpulseGen){
-	LADSPA_Data l_deltaT = p_pImpulseGen->m_Tacc - p_pImpulseGen->m_Tperiod;
-	if(l_deltaT<=-1.0f){
-		p_pImpulseGen->m_Tacc += 1.0f;
-	}else if(l_deltaT<=0.0f){
-		ImpulseGen_impulse(p_pImpulseGen,-l_deltaT);
-		p_pImpulseGen->m_Tacc = 1.0f + l_deltaT;
-	}else{
-		ImpulseGen_impulse(p_pImpulseGen, 0.0f);
-		p_pImpulseGen->m_Tacc = 0.0f;
-	}
+    if(p_pImpulseGen->m_pre){
+        LADSPA_Data l_deltaT = p_pImpulseGen->m_Tacc - p_pImpulseGen->m_Tpre;
+        if(l_deltaT<=-1.0f){
+            p_pImpulseGen->m_Tacc += 1.0f;
+        }else if(l_deltaT<=0.0f){
+            ImpulseGen_impulse(p_pImpulseGen,-l_deltaT);
+            p_pImpulseGen->m_Tacc = 1.0f + l_deltaT;
+            p_pImpulseGen->m_pre = 0;
+        }else{
+            ImpulseGen_impulse(p_pImpulseGen, 0.0f);
+            p_pImpulseGen->m_Tacc = 0.0f;
+            p_pImpulseGen->m_pre = 0;
+        }
+    }else{
+        LADSPA_Data l_deltaT = p_pImpulseGen->m_Tacc - p_pImpulseGen->m_Tpost;
+        if(l_deltaT<=-1.0f){
+            p_pImpulseGen->m_Tacc += 1.0f;
+        }else if(l_deltaT<=0.0f){
+            // set the pre and post times
+            p_pImpulseGen->m_Tpre = *p_pImpulseGen->m_pport[PORT_MODULATION]/100.0f*p_pImpulseGen->m_Tperiod*drand48();
+            p_pImpulseGen->m_Tpost = p_pImpulseGen->m_Tperiod - p_pImpulseGen->m_Tpre;
+            // test for impulse with this sample
+            LADSPA_Data l_deltaT_next = l_deltaT - p_pImpulseGen->m_Tpre;
+            if(l_deltaT_next<=-1.0f){
+                // not within this sample period
+                p_pImpulseGen->m_Tacc = 1.0f + l_deltaT;
+                p_pImpulseGen->m_pre = 1;
+            }else if(l_deltaT_next<=0.0f){
+                // within the sample. Generate an impulse
+                ImpulseGen_impulse(p_pImpulseGen, -l_deltaT_next);
+                p_pImpulseGen->m_Tacc = 1.0f + l_deltaT_next;
+            }
+        }else{
+            p_pImpulseGen->m_Tacc = 0.0f;
+            p_pImpulseGen->m_pre = 1;
+        }
+    }
+
 	LADSPA_Data l_result = p_pImpulseGen->m_accumulator[p_pImpulseGen->m_i_acc];
 	p_pImpulseGen->m_accumulator[p_pImpulseGen->m_i_acc] = 0.0f;
 	p_pImpulseGen->m_i_acc++;

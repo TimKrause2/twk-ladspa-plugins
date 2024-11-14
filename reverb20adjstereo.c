@@ -6,113 +6,37 @@
 #define N_ALLPASS 20
 #define N_COMB 20
 
-static LADSPA_Data allpass_init_left[N_ALLPASS]=
+#define COMB_T0 0.0351
+#define ALLPASS_T0 0.0007708
+
+static int allpass_init_left[N_ALLPASS];
+static int allpass_init_right[N_ALLPASS];
+static int comb_init_left[N_COMB];
+static int comb_init_right[N_COMB];
+
+static void Init_allpass_times(LADSPA_Data sample_rate)
 {
-	347,
-	113,
-	37,
-	439,
-	97,
+    for(int i=0;i<N_ALLPASS;i++){
+        float xl = (float)i + (float)drand48()*0.5f;
+        float xr = (float)i + (float)drand48()*0.5f;
+        float tl = ALLPASS_T0*powf(2.0f, xl*2.1f/N_ALLPASS);
+        float tr = ALLPASS_T0*powf(2.0f, xr*2.1f/N_ALLPASS);
+        allpass_init_left[i] = tl*sample_rate;
+        allpass_init_right[i] = tr*sample_rate;
+    }
+}
 
-	233,
-	421,
-	683,
-	811,
-	1103,
-
-	1409,
-	4409,
-	3631,
-	3301,
-	2711,
-	
-	5003,
-	4801,
-	5231,
-	5393,
-	5507
-};
-
-static LADSPA_Data allpass_init_right[N_ALLPASS]=
+static void Init_comb_times(LADSPA_Data sample_rate)
 {
-	349,
-	109,
-	41,
-	433,
-	101,
-
-	229,
-	431,
-	677,
-	821,
-	1109,
-
-	1423,
-	4397,
-	3637,
-	3299,
-	2719,
-	
-	5009,
-	4799,
-	5227,
-	5399,
-	5501
-};
-
-static LADSPA_Data comb_init_left[N_COMB]=
-{
-	1687,
-	1601,
-	2053,
-	2251,
-	1637,
-	
-	1801,
-	2311,
-	2441,
-	2909,
-	3041,
-
-	3323,
-	3581,
-	3637,
-	3803,
-	4001,
-	
-	4129,
-	4337,
-	4871,
-	4919,
-	5233
-};
-
-static LADSPA_Data comb_init_right[N_COMB]=
-{
-	1699,
-	1607,
-	2039,
-	2267,
-	1657,
-	
-	1811,
-	2309,
-	2447,
-	2903,
-	3049,
-
-	3319,
-	3571,
-	3643,
-	3821,
-	4003,
-	
-	4127,
-	4349,
-	4877,
-	4909,
-	5231
-};
+    for(int i=0;i<N_COMB;i++){
+        float xl = (float)i + (float)drand48()*0.25f;
+        float xr = (float)i + (float)drand48()*0.25f;
+        float tl = COMB_T0*powf(2.0f, xl/N_COMB);
+        float tr = COMB_T0*powf(2.0f, xr/N_COMB);
+        comb_init_left[i] = tl*sample_rate;
+        comb_init_right[i] = tr*sample_rate;
+    }
+}
 
 enum {
 	PORT_IN_L,
@@ -245,7 +169,9 @@ static LADSPA_Handle Reverb_instantiate(const struct _LADSPA_Descriptor * Descri
 {
 	Reverb *r=(Reverb*)malloc(sizeof(Reverb));
 	if(!r)return NULL;
-	
+    Init_allpass_times(SampleRate);
+    Init_comb_times(SampleRate);
+
 	r->sample_rate = SampleRate;
 	int i;
 	for(i=0;i<N_ALLPASS;i++){
