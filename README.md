@@ -39,7 +39,9 @@
 
 RBJ = Robert Bristow-Johnson of [Audio-EQ-Cookbook.txt](https://github.com/TimKrause2/twk-ladspa-plugins/blob/main/Audio-EQ-Cookbook.txt)
 
+## Download
 
+All of the plugins reside in `twk.so` . The zip file is available for download [here](https://twkrause.ca/#twk-ladspa-plugins).
 
 ## Compilation
 
