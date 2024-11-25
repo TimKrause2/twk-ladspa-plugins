@@ -1,17 +1,31 @@
+/*
+ * Voice pitch determination steps
+ *
+ * 1) auto-correlation up to Norder+1 taps
+ * 2) Levinson-Durbin to calculate the recursion coefficients
+ * 3) filter the original signal by the inverse of the LPC model
+ * 4) filter 3) by a low pass filter
+ * 5) auto-correlation of 4) from max frequency interval to min
+ *    frequency interval
+ * 6) find the peek in the correlates. This is the interval in samples
+ *    of the voice fundamental
+ */
+
 #include <ladspa.h>
 #define _GNU_SOURCE
 #include <math.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
+#define N_ORDER  48
+
 #define N_WINDOW 32
 #define N_SS     1024
 
-#define F_MIN    85.0f
-#define F_MAX    450.0f
+#define F_MIN    80.0f
+#define F_MAX    1050.0f
 
-#define F_LOPASS 400.0f
-#define Q_LOPASS 1.0f
+#define Q_LOPASS 0.707f
 #define ALPHA_DC 0.95f
 
 enum {
@@ -75,15 +89,147 @@ typedef struct
 	LADSPA_Data m_b2;
 } LoPass;
 
+typedef struct {
+    double m_z[N_ORDER];
+    double m_a[N_ORDER];
+    int m_i_z;
+} LPC_Filter;
+
+typedef struct {
+    double *m_palpha[N_ORDER];
+    double  m_alpha_data[N_ORDER*(N_ORDER+1)/2];
+    double  m_R[N_ORDER+1];
+    double  m_gain;
+} LD_Data; // Levinson-Durbin data
+
 typedef struct
 {
-	LADSPA_Data *m_x;
-	LADSPA_Data *m_cor;
-	int m_N_window;
-	int m_N_cor;
-	int m_i_hi;
-	int m_i_x;
-} PitchEstimator;
+    LADSPA_Data *m_x;
+    int m_N;
+    int m_i_x;
+} InputBuffer;
+
+static void LPC_Filter_init(LPC_Filter *f)
+{
+    for(int i=0;i<N_ORDER;i++)
+    {
+        f->m_z[i] = 0.0f;
+    }
+    f->m_i_z = 0;
+}
+
+static LADSPA_Data LPC_Filter_evaluate(LPC_Filter *f, LADSPA_Data x)
+{
+    double l_fb = 0.0;
+    long l_i_start = f->m_i_z-1;
+    if( l_i_start < 0 ) l_i_start+=N_ORDER;
+
+    long l_N_loop1=l_i_start+1;
+    long l_N_loop2=N_ORDER-l_N_loop1;
+
+    double *l_pa = f->m_a;
+    double *l_pz =&f->m_z[l_i_start];
+
+    long l_i;
+    for( l_i=l_N_loop1-1; ; l_i--){
+        l_fb += *l_pa * *l_pz;
+        l_pa++;
+        if( l_i==0 ) break;
+        l_pz--;
+    }
+
+    if( l_N_loop2 ){
+        l_pz = &f->m_z[N_ORDER-1];
+        for( l_i=l_N_loop2-1; ; l_i-- ){
+            l_fb += *l_pa * *l_pz;
+            if( l_i == 0 ) break;
+            l_pa++;
+            l_pz--;
+        }
+    }
+
+    double l_y = (double)x + l_fb;
+    if( !isfinite(l_y) ) l_y=0.0;
+    f->m_z[ f->m_i_z ] = (double)x;
+    if(++f->m_i_z==N_ORDER)
+        f->m_i_z = 0;
+
+    return (LADSPA_Data)l_y;
+}
+
+
+void LD_Data_init(LD_Data *ld)
+{
+    double *data = ld->m_alpha_data;
+    for(int i=0;i<N_ORDER;i++){
+        ld->m_palpha[i] = data;
+        data += i+1;
+    }
+}
+
+void LD_Data_correlate(LD_Data *ld, InputBuffer *ib)
+{
+    for(int lag=0;lag<(N_ORDER+1);lag++)
+    {
+        double R=0;
+        LADSPA_Data *x0=ib->m_x;
+        LADSPA_Data *x1=&ib->m_x[lag];
+        for(int i=lag;i<ib->m_N;i++){
+            R += (double)*x0 * (double)*x1;
+            x0++;
+            x1++;
+        }
+        ld->m_R[lag] = R;
+    }
+}
+
+void LD_Data_evaluate(LD_Data *l_pData)
+{
+    double l_E = l_pData->m_R[0];
+    long l_i;
+    for( l_i=0; l_i<N_ORDER; l_i++ ){
+        double l_k_num = l_pData->m_R[l_i+1];
+        long l_j;
+        if( (l_i-1) >= 0 ){
+            double *l_palpha = l_pData->m_palpha[l_i-1];
+            double *l_pR = &l_pData->m_R[l_i];
+            for( l_j=l_i-1; l_j>=0; l_j-- ){
+                //for( l_j=0; l_j<=(l_i-1); l_j++ ){
+                //l_k_num -= l_pData->m_palpha[l_i-1][l_j] * l_pData->m_R[l_i-l_j];
+                l_k_num -= *l_palpha * *l_pR;
+                l_palpha++;
+                l_pR--;
+            }
+        }
+        double l_k = l_k_num / l_E;
+        l_pData->m_palpha[l_i][l_i] = l_k;
+        if( (l_i-1) >= 0 ){
+            double *l_palphadst = l_pData->m_palpha[l_i];
+            double *l_palphasrc = l_pData->m_palpha[l_i-1];
+            double *l_palphasrck = &l_pData->m_palpha[l_i-1][l_i-1];
+            //for( l_j=0; l_j<=(l_i-1); l_j++ ){
+            for( l_j = l_i-1; l_j>=0; l_j--){
+                //l_pData->m_palpha[l_i][l_j] = l_pData->m_palpha[l_i-1][l_j] - l_k*l_pData->m_palpha[l_i-1][l_i-l_j-1];
+                *l_palphadst = *l_palphasrc - l_k * *l_palphasrck;
+                l_palphadst++;
+                l_palphasrc++;
+                l_palphasrck--;
+            }
+        }
+        l_E *= (1 - l_k*l_k);
+    }
+
+    // program the gain of the filter
+    l_pData->m_gain = sqrt( l_E );
+}
+
+void LD_Data_set_filter(LD_Data *ld, LPC_Filter *lpc)
+{
+    for(int i=0;i<N_ORDER;i++)
+    {
+        lpc->m_a[i] = -ld->m_palpha[N_ORDER-1][i];
+    }
+}
 
 typedef struct
 {
@@ -96,15 +242,43 @@ typedef struct
 	LADSPA_Data m_Tperiod;
 	DCRemove m_dc;
 	LoPass   m_lp;
-	PitchEstimator  m_pitch[2];
+    LPC_Filter m_lpc;
+    LD_Data m_ld;
+    int m_N_window;
+    int m_N_cor;
+    int m_i_hi;
+    LADSPA_Data *m_data; // single malloc for all data
+    LADSPA_Data *m_cor;
+    InputBuffer m_buffers[2];
 } ImpulseGen;
 
 static LADSPA_Data DCRemove_evaluate(DCRemove *p_pdc, LADSPA_Data p_x)
 {
-	LADSPA_Data l_m = p_x + ALPHA_DC*p_pdc->m_z1;
+    LADSPA_Data l_m = p_x + ALPHA_DC*p_pdc->m_z1;
 	LADSPA_Data l_r = l_m - p_pdc->m_z1;
 	p_pdc->m_z1 = l_m;
 	return l_r;
+}
+
+static void LoPass_init(LoPass *lp)
+{
+    lp->m_z1 = 0.0f;
+    lp->m_z2 = 0.0f;
+}
+
+static void LoPass_set(LoPass *lp, LADSPA_Data sample_rate,
+                       LADSPA_Data frequency, LADSPA_Data Q)
+{
+    LADSPA_Data l_omega = 2.0f*M_PIf*frequency/sample_rate;
+    LADSPA_Data l_sin_omega = sinf(l_omega);
+    LADSPA_Data l_cos_omega = cosf(l_omega);
+    LADSPA_Data l_alpha = l_sin_omega / ( 2.0f * Q);
+    LADSPA_Data l_a0 = 1.0f + l_alpha;
+    lp->m_a1 = -2.0f * l_cos_omega / l_a0;
+    lp->m_a2 = (1.0f - l_alpha) / l_a0;
+    lp->m_b0 = (1.0f - l_cos_omega) / 2.0f / l_a0;
+    lp->m_b1 = (1.0f - l_cos_omega) / l_a0;
+    lp->m_b2 = (1.0f - l_cos_omega) / 2.0f / l_a0;
 }
 
 static LADSPA_Data LoPass_evaluate(LoPass *p_plp, LADSPA_Data p_x)
@@ -114,70 +288,6 @@ static LADSPA_Data LoPass_evaluate(LoPass *p_plp, LADSPA_Data p_x)
 	p_plp->m_z2 = p_plp->m_z1;
 	p_plp->m_z1 = l_m;
 	return l_r;
-}
-
-static void PitchEstimator_init(PitchEstimator *p_pPitch,
-						 LADSPA_Data p_f_lo,
-						 LADSPA_Data p_f_hi,
-						 unsigned long p_sample_rate)
-{
-	p_pPitch->m_N_window = (int)((LADSPA_Data)p_sample_rate/p_f_lo);
-	p_pPitch->m_i_hi = (int)((LADSPA_Data)p_sample_rate/p_f_hi);
-	p_pPitch->m_N_cor = p_pPitch->m_N_window - p_pPitch->m_i_hi + 1;
-	p_pPitch->m_x = malloc(sizeof(LADSPA_Data)*p_pPitch->m_N_window*2);
-	p_pPitch->m_cor = malloc(sizeof(LADSPA_Data)*p_pPitch->m_N_cor);
-	p_pPitch->m_i_x = 0;
-	for(int i=0;i<p_pPitch->m_N_window*2;i++){
-		p_pPitch->m_x[i] = 0.0f;
-	}
-}
-
-static LADSPA_Data PitchEstimator_evaluate(PitchEstimator *p_pPitch, LADSPA_Data p_x)
-{
-	p_pPitch->m_x[p_pPitch->m_i_x++] = p_x;
-	if(p_pPitch->m_i_x == p_pPitch->m_N_window*2){
-		p_pPitch->m_i_x = 0;
-		// auto-correlation of zero displacement
-		LADSPA_Data *l_px0 = p_pPitch->m_x;
-		LADSPA_Data *l_px1 = p_pPitch->m_x;
-		LADSPA_Data l_cor0 = 0.0f;
-		for(int i=p_pPitch->m_N_window;i;i--){
-			l_cor0 += *(l_px0++) * *(l_px1++);
-		}
-		if(l_cor0==0.0f) return 0.0f;
-		// auto-correlation scan
-		int l_i = p_pPitch->m_i_hi;
-		LADSPA_Data *l_pcor = p_pPitch->m_cor;
-		for(int i=p_pPitch->m_N_cor;i;i--,l_i++,l_pcor++){
-			l_px0 = p_pPitch->m_x;
-			l_px1 = &p_pPitch->m_x[l_i];
-			*l_pcor = 0.0f;
-			for(int j=p_pPitch->m_N_window;j;j--){
-				*l_pcor += *(l_px0++) * *(l_px1++);
-			}
-			*l_pcor /= l_cor0;
-		}
-		// peak detector
-		LADSPA_Data l_peak_level=p_pPitch->m_cor[0];
-		int l_peak_i=0;
-		for(int i=1;i<p_pPitch->m_N_cor-1;i++){
-			if(p_pPitch->m_cor[i] > l_peak_level){
-				l_peak_level = p_pPitch->m_cor[i];
-				l_peak_i = i;
-			}
-		}
-		return (LADSPA_Data)(l_peak_i + p_pPitch->m_i_hi);
-	}else{
-		return 0.0f;
-	}
-	return 0.0f;
-}
-
-
-static void PitchEstimator_destroy(PitchEstimator *p_pPitch)
-{
-	free(p_pPitch->m_x);
-	free(p_pPitch->m_cor);
 }
 
 static LADSPA_Handle ImpulseGenVC_instantiate(
@@ -191,7 +301,10 @@ static LADSPA_Handle ImpulseGenVC_instantiate(
 	p_pImpulseGen->m_i_acc = 0;
 	p_pImpulseGen->m_Tacc = 0.0f;
 	p_pImpulseGen->m_Tperiod = (LADSPA_Data)p_sample_rate/100.0f;
-	for(int i_ss=0;i_ss<N_SS;i_ss++){
+    p_pImpulseGen->m_N_window = (int)ceilf((LADSPA_Data)p_sample_rate/F_MIN);
+    p_pImpulseGen->m_i_hi = (int)floorf((LADSPA_Data)p_sample_rate/F_MAX);
+    p_pImpulseGen->m_N_cor = p_pImpulseGen->m_N_window - p_pImpulseGen->m_i_hi + 1;
+    for(int i_ss=0;i_ss<N_SS;i_ss++){
 		LADSPA_Data l_alpha = (LADSPA_Data)i_ss/N_SS;
 		for(int i_window=0;i_window<N_WINDOW;i_window++){
 			LADSPA_Data l_x = (LADSPA_Data)(i_window-(N_WINDOW/2))-l_alpha;
@@ -205,23 +318,30 @@ static LADSPA_Handle ImpulseGenVC_instantiate(
 
 	p_pImpulseGen->m_dc.m_z1 = 0.0f;
 
-	p_pImpulseGen->m_lp.m_z1 = 0.0f;
-	p_pImpulseGen->m_lp.m_z2 = 0.0f;
-	LADSPA_Data l_omega = 2.0*M_PI*F_LOPASS/p_sample_rate;
-	LADSPA_Data l_sin_omega = sinf(l_omega);
-	LADSPA_Data l_cos_omega = cosf(l_omega);
-	LADSPA_Data l_alpha = l_sin_omega / ( 2.0f * Q_LOPASS);
-	LADSPA_Data l_a0 = 1.0f + l_alpha;
-	p_pImpulseGen->m_lp.m_a1 = -2.0f * l_cos_omega / l_a0;
-	p_pImpulseGen->m_lp.m_a2 = (1.0f - l_alpha) / l_a0;
-	p_pImpulseGen->m_lp.m_b0 = (1.0f - l_cos_omega) / 2.0f / l_a0;
-	p_pImpulseGen->m_lp.m_b1 = (1.0f - l_cos_omega) / l_a0;
-	p_pImpulseGen->m_lp.m_b2 = (1.0f - l_cos_omega) / 2.0f / l_a0;
+    LoPass_set(&p_pImpulseGen->m_lp, p_sample_rate, F_MAX, Q_LOPASS);
 
-	PitchEstimator_init(&p_pImpulseGen->m_pitch[0],F_MIN,F_MAX,p_sample_rate);
-	PitchEstimator_init(&p_pImpulseGen->m_pitch[1],F_MIN,F_MAX,p_sample_rate);
-	p_pImpulseGen->m_pitch[1].m_i_x = p_pImpulseGen->m_pitch[1].m_N_window;
-	return (LADSPA_Handle)p_pImpulseGen;
+    int N_bytes = (p_pImpulseGen->m_N_window*4 + p_pImpulseGen->m_N_cor)*sizeof(LADSPA_Data);
+    p_pImpulseGen->m_data = (LADSPA_Data*)malloc(N_bytes);
+    if(!p_pImpulseGen->m_data){
+        free(p_pImpulseGen);
+        return NULL;
+    }
+
+    LADSPA_Data *l_data = p_pImpulseGen->m_data;
+    p_pImpulseGen->m_cor = l_data;
+    l_data += p_pImpulseGen->m_N_cor;
+
+    p_pImpulseGen->m_buffers[0].m_x = l_data;
+    p_pImpulseGen->m_buffers[0].m_N = p_pImpulseGen->m_N_window*2;
+    p_pImpulseGen->m_buffers[0].m_i_x = 0;
+    l_data += p_pImpulseGen->m_N_window*2;
+    p_pImpulseGen->m_buffers[1].m_x = l_data;
+    p_pImpulseGen->m_buffers[1].m_N = p_pImpulseGen->m_N_window*2;
+    p_pImpulseGen->m_buffers[1].m_i_x = p_pImpulseGen->m_N_window;
+
+    LD_Data_init(&p_pImpulseGen->m_ld);
+
+    return (LADSPA_Handle)p_pImpulseGen;
 }
 
 static void ImpulseGenVC_impulse(ImpulseGen *p_pImpulseGen, LADSPA_Data p_alpha){
@@ -282,16 +402,48 @@ static void ImpulseGenVC_run(
 	
 	for(sample=p_sample_count;sample!=0;sample--){
 		LADSPA_Data l_x = DCRemove_evaluate(&p_pImpulseGen->m_dc, *(l_psrc++));
-		l_x = LoPass_evaluate(&p_pImpulseGen->m_lp, l_x);
-		LADSPA_Data l_f0 = PitchEstimator_evaluate(&p_pImpulseGen->m_pitch[0], l_x);
-		LADSPA_Data l_f1 = PitchEstimator_evaluate(&p_pImpulseGen->m_pitch[1], l_x);
-		if(l_f0!=0.0f || l_f1!=0.0f){
-			if(l_f0!=0.0f){
-				p_pImpulseGen->m_Tperiod = l_f0;
-			}else{
-				p_pImpulseGen->m_Tperiod = l_f1;
-			}
-		}
+        for(int b=0;b<2;b++){
+            InputBuffer *buff = &p_pImpulseGen->m_buffers[b];
+            buff->m_x[buff->m_i_x++] = l_x;
+            if(buff->m_i_x == buff->m_N){
+                buff->m_i_x = 0;
+                // buffer ready
+                LD_Data_correlate(&p_pImpulseGen->m_ld, buff);
+                LD_Data_evaluate(&p_pImpulseGen->m_ld);
+                LD_Data_set_filter(&p_pImpulseGen->m_ld, &p_pImpulseGen->m_lpc);
+                LPC_Filter_init(&p_pImpulseGen->m_lpc);
+                LoPass_init(&p_pImpulseGen->m_lp);
+                for(int s=0;s<buff->m_N;s++){
+                    LADSPA_Data temp = LPC_Filter_evaluate(&p_pImpulseGen->m_lpc, buff->m_x[s]);
+                    buff->m_x[s] = LoPass_evaluate(&p_pImpulseGen->m_lp, temp);
+                }
+                LADSPA_Data *l_cor = p_pImpulseGen->m_cor;
+                for(int lag=p_pImpulseGen->m_i_hi;lag<=p_pImpulseGen->m_N_window;lag++){
+                    *l_cor = 0.0f;
+                    LADSPA_Data *x0 = buff->m_x;
+                    LADSPA_Data *x1 = &buff->m_x[lag];
+                    for(int s=0;s<p_pImpulseGen->m_N_window;s++){
+                        *l_cor += *x0 * *x1;
+                        x0++;
+                        x1++;
+                    }
+                    l_cor++;
+                }
+                // find the peek
+                l_cor = p_pImpulseGen->m_cor;
+                LADSPA_Data peek = *l_cor;
+                int i_peek = 0;
+                l_cor++;
+                for(int i=1;i<p_pImpulseGen->m_N_cor;i++){
+                    if(*l_cor > peek){
+                        peek = *l_cor;
+                        i_peek = i;
+                    }
+                    l_cor++;
+                }
+                p_pImpulseGen->m_Tperiod = (LADSPA_Data)(p_pImpulseGen->m_i_hi+i_peek);
+            }
+        }
 		*(l_pdst++) = ImpulseGenVC_evaluate(p_pImpulseGen)*l_amp;
 	}
 }
@@ -300,9 +452,8 @@ static void ImpulseGenVC_cleanup(
 	LADSPA_Handle p_pinstance )
 {
 	ImpulseGen *p_pImpulseGen = (ImpulseGen*)p_pinstance;
-	PitchEstimator_destroy(&p_pImpulseGen->m_pitch[0]);
-	PitchEstimator_destroy(&p_pImpulseGen->m_pitch[1]);
-	free( p_pinstance );
+    free(p_pImpulseGen->m_data);
+    free( p_pImpulseGen );
 }
 
 LADSPA_Descriptor ImpulseGenVC_Descriptor=
