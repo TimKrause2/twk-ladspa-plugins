@@ -339,6 +339,11 @@ static LADSPA_Handle ImpulseGenVC_instantiate(
     p_pImpulseGen->m_buffers[1].m_N = p_pImpulseGen->m_N_window*2;
     p_pImpulseGen->m_buffers[1].m_i_x = p_pImpulseGen->m_N_window;
 
+    for(int s=0;s<p_pImpulseGen->m_N_window*2;s++){
+        p_pImpulseGen->m_buffers[0].m_x[s] = 0.0f;
+        p_pImpulseGen->m_buffers[1].m_x[s] = 0.0f;
+    }
+
     LD_Data_init(&p_pImpulseGen->m_ld);
 
     return (LADSPA_Handle)p_pImpulseGen;
@@ -409,6 +414,8 @@ static void ImpulseGenVC_run(
                 buff->m_i_x = 0;
                 // buffer ready
                 LD_Data_correlate(&p_pImpulseGen->m_ld, buff);
+                if(p_pImpulseGen->m_ld.m_R[0] < 1e-9)
+                    continue;
                 LD_Data_evaluate(&p_pImpulseGen->m_ld);
                 LD_Data_set_filter(&p_pImpulseGen->m_ld, &p_pImpulseGen->m_lpc);
                 LPC_Filter_init(&p_pImpulseGen->m_lpc);
@@ -422,7 +429,7 @@ static void ImpulseGenVC_run(
                     *l_cor = 0.0f;
                     LADSPA_Data *x0 = buff->m_x;
                     LADSPA_Data *x1 = &buff->m_x[lag];
-                    for(int s=0;s<p_pImpulseGen->m_N_window;s++){
+                    for(int s=lag;s<p_pImpulseGen->m_N_window*2;s++){
                         *l_cor += *x0 * *x1;
                         x0++;
                         x1++;
