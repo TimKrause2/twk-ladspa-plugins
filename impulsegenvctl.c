@@ -31,7 +31,10 @@
 enum {
 	PORT_IN,
 	PORT_OUT,
-	PORT_AMPLITUDE,
+    PORT_IMPULSE_AMP,
+    PORT_NOISE_AMP,
+    PORT_NRAMP,
+    PORT_PITCH,
 	PORT_NPORTS
 };
 
@@ -39,24 +42,43 @@ static LADSPA_PortDescriptor ImpulseGenVC_PortDescriptors[]=
 {
 	LADSPA_PORT_INPUT | LADSPA_PORT_AUDIO,
 	LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO,
-	LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL
+    LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL,
+    LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL,
+    LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL,
+    LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL
 };
 
 static const char* ImpulseGenVC_PortNames[]=
 {
 	"Input",
 	"Output",
-	"Amplitude"
+    "Impulse Amp(dB)",
+    "Noise Amp(dB)",
+    "Pulse Width",
+    "Pitch Shift"
 };
 
 static LADSPA_PortRangeHint ImpulseGenVC_PortRangeHints[]=
 {
 	{0, 0.0f, 0.0f},
 	{0, 0.0f, 0.0f},
-	{ LADSPA_HINT_BOUNDED_BELOW |
-		LADSPA_HINT_BOUNDED_ABOVE |
-		LADSPA_HINT_DEFAULT_MAXIMUM,
-		0.0f, 1.0f}
+    { LADSPA_HINT_BOUNDED_BELOW |
+         LADSPA_HINT_BOUNDED_ABOVE |
+         LADSPA_HINT_DEFAULT_MAXIMUM,
+     -60.0f, 0.0f},
+    { LADSPA_HINT_BOUNDED_BELOW |
+         LADSPA_HINT_BOUNDED_ABOVE |
+         LADSPA_HINT_DEFAULT_MAXIMUM,
+     -60.0f, 0.0f},
+    { LADSPA_HINT_BOUNDED_BELOW |
+         LADSPA_HINT_INTEGER |
+         LADSPA_HINT_BOUNDED_ABOVE |
+         LADSPA_HINT_DEFAULT_MINIMUM,
+     1.0f, 10.0f},
+    { LADSPA_HINT_BOUNDED_BELOW |
+         LADSPA_HINT_BOUNDED_ABOVE |
+         LADSPA_HINT_DEFAULT_MAXIMUM,
+     -12.0f, 12.0f},
 };
 
 static LADSPA_Data sinc(LADSPA_Data x)
@@ -68,9 +90,11 @@ static LADSPA_Data sinc(LADSPA_Data x)
 	}
 }
 
-static LADSPA_Data hamming(LADSPA_Data alpha)
+static LADSPA_Data hamming(int n, int N)
 {
-	return 0.54f + 0.46f*cosf(M_PI*alpha);
+    LADSPA_Data a0 = 25.0f/46.0f;
+    LADSPA_Data a1 = 1.0f - a0;
+    return a0 - a1*cosf(2.0f*M_PIf*n/(N-1));
 }
 
 typedef struct
@@ -247,8 +271,11 @@ typedef struct
     int m_N_window;
     int m_N_cor;
     int m_i_hi;
+    int m_noise;
+    int m_SS_rate;
     LADSPA_Data *m_data; // single malloc for all data
-    LADSPA_Data *m_cor;
+    LADSPA_Data *m_cor; // correlation data
+    LADSPA_Data *m_SS_buffer; // super sampled data
     InputBuffer m_buffers[2];
 } ImpulseGen;
 
@@ -290,11 +317,58 @@ static LADSPA_Data LoPass_evaluate(LoPass *p_plp, LADSPA_Data p_x)
 	return l_r;
 }
 
+void ImpulseGen_SS(ImpulseGen *p_pImpulseGen, InputBuffer *buff)
+{
+    LADSPA_Data *l_src = buff->m_x;
+    LADSPA_Data *l_dst = p_pImpulseGen->m_SS_buffer;
+    if(p_pImpulseGen->m_SS_rate==1){
+        for(int s=0;s<buff->m_N;s++){
+            *(l_dst++) = *(l_src++);
+        }
+    }else{
+        LADSPA_Data l_cbuff[N_WINDOW];
+        int l_i_cbuff = 0;
+        int l_i_src = 0;
+        for(;l_i_cbuff<N_WINDOW/2-1;l_i_cbuff++){
+            l_cbuff[l_i_cbuff] = 0.0f;
+        }
+        for(;l_i_cbuff<N_WINDOW;l_i_cbuff++,l_i_src++){
+            l_cbuff[l_i_cbuff] = buff->m_x[l_i_src];
+        }
+        l_i_cbuff = 0;
+        for(int s=0;s<buff->m_N;s++){
+            *(l_dst++) = *(l_src++);
+            for(int ss=1;ss<p_pImpulseGen->m_SS_rate;ss++){
+                int N_loop1 = N_WINDOW - l_i_cbuff;
+                int N_loop2 = N_WINDOW - N_loop1;
+                LADSPA_Data *l_impulse = p_pImpulseGen->m_impulse_data[N_SS*ss/p_pImpulseGen->m_SS_rate];
+                LADSPA_Data *l_pcbuff = &l_cbuff[l_i_cbuff];
+                *l_dst = 0.0f;
+                for(int i=0;i<N_loop1;i++){
+                    *l_dst += *(l_impulse++) * *(l_pcbuff++);
+                }
+                if(N_loop2){
+                    l_pcbuff = l_cbuff;
+                    for(int i=0;i<N_loop2;i++){
+                        *l_dst += *(l_impulse++) * *(l_pcbuff++);
+                    }
+                }
+                l_dst++;
+            }
+            l_cbuff[l_i_cbuff] = (l_i_src<buff->m_N)?buff->m_x[l_i_src]:0.0f;
+            l_i_cbuff++;
+            if(l_i_cbuff==N_WINDOW)
+                l_i_cbuff=0;
+            l_i_src++;
+        }
+    }
+}
+
 static LADSPA_Handle ImpulseGenVC_instantiate(
 	const struct _LADSPA_Descriptor *p_pDescriptor,
 	unsigned long p_sample_rate )
 {
-	ImpulseGen *p_pImpulseGen = malloc( sizeof(ImpulseGen) );
+    ImpulseGen *p_pImpulseGen = (ImpulseGen*)malloc( sizeof(ImpulseGen) );
 	if(!p_pImpulseGen)
 		return NULL;
 	p_pImpulseGen->m_sample_rate = p_sample_rate;
@@ -303,13 +377,20 @@ static LADSPA_Handle ImpulseGenVC_instantiate(
 	p_pImpulseGen->m_Tperiod = (LADSPA_Data)p_sample_rate/100.0f;
     p_pImpulseGen->m_N_window = (int)ceilf((LADSPA_Data)p_sample_rate/F_MIN);
     p_pImpulseGen->m_i_hi = (int)floorf((LADSPA_Data)p_sample_rate/F_MAX);
+    if(p_sample_rate <= 50000){
+        p_pImpulseGen->m_SS_rate = 4;
+    }else if(p_sample_rate <= 100000){
+        p_pImpulseGen->m_SS_rate = 2;
+    }else{
+        p_pImpulseGen->m_SS_rate = 1;
+    }
     p_pImpulseGen->m_N_cor = p_pImpulseGen->m_N_window - p_pImpulseGen->m_i_hi + 1;
+    p_pImpulseGen->m_noise = 0;
     for(int i_ss=0;i_ss<N_SS;i_ss++){
 		LADSPA_Data l_alpha = (LADSPA_Data)i_ss/N_SS;
 		for(int i_window=0;i_window<N_WINDOW;i_window++){
-			LADSPA_Data l_x = (LADSPA_Data)(i_window-(N_WINDOW/2))-l_alpha;
-			LADSPA_Data l_alpha = (LADSPA_Data)(i_window-(N_WINDOW/2))/(N_WINDOW/2);
-			p_pImpulseGen->m_impulse_data[i_ss][i_window] = sinc(M_PI*l_x)*hamming(l_alpha);
+            LADSPA_Data l_x = (LADSPA_Data)(i_window-(N_WINDOW/2-1))-l_alpha;
+            p_pImpulseGen->m_impulse_data[i_ss][i_window] = sinc(M_PI*l_x)*hamming(i_window,N_WINDOW);
 		}
 	}
 	for(int i_window=0;i_window<N_WINDOW;i_window++){
@@ -320,7 +401,10 @@ static LADSPA_Handle ImpulseGenVC_instantiate(
 
     LoPass_set(&p_pImpulseGen->m_lp, p_sample_rate, F_MAX, Q_LOPASS);
 
-    int N_bytes = (p_pImpulseGen->m_N_window*4 + p_pImpulseGen->m_N_cor)*sizeof(LADSPA_Data);
+    int N_bytes = p_pImpulseGen->m_N_window*4;
+    N_bytes += p_pImpulseGen->m_N_cor*p_pImpulseGen->m_SS_rate;
+    N_bytes += p_pImpulseGen->m_N_window*2*p_pImpulseGen->m_SS_rate;
+    N_bytes *= sizeof(LADSPA_Data);
     p_pImpulseGen->m_data = (LADSPA_Data*)malloc(N_bytes);
     if(!p_pImpulseGen->m_data){
         free(p_pImpulseGen);
@@ -329,7 +413,10 @@ static LADSPA_Handle ImpulseGenVC_instantiate(
 
     LADSPA_Data *l_data = p_pImpulseGen->m_data;
     p_pImpulseGen->m_cor = l_data;
-    l_data += p_pImpulseGen->m_N_cor;
+    l_data += p_pImpulseGen->m_N_cor*p_pImpulseGen->m_SS_rate;
+
+    p_pImpulseGen->m_SS_buffer = l_data;
+    l_data += p_pImpulseGen->m_N_window*2*p_pImpulseGen->m_SS_rate;
 
     p_pImpulseGen->m_buffers[0].m_x = l_data;
     p_pImpulseGen->m_buffers[0].m_N = p_pImpulseGen->m_N_window*2;
@@ -366,26 +453,44 @@ static void ImpulseGenVC_impulse(ImpulseGen *p_pImpulseGen, LADSPA_Data p_alpha)
 	}
 }
 
-static LADSPA_Data ImpulseGenVC_evaluate(ImpulseGen *p_pImpulseGen){
+static LADSPA_Data ImpulseGenVC_evaluate(ImpulseGen *p_pImpulseGen, int N_ramp){
 	LADSPA_Data l_deltaT = p_pImpulseGen->m_Tacc - p_pImpulseGen->m_Tperiod;
-	if(l_deltaT<=-1.0f){
-		p_pImpulseGen->m_Tacc += 1.0f;
-	}else if(l_deltaT<=0.0f){
-		ImpulseGenVC_impulse(p_pImpulseGen,-l_deltaT);
-		p_pImpulseGen->m_Tacc = 1.0f + l_deltaT;
-	}else{
-		ImpulseGenVC_impulse(p_pImpulseGen, 0.0f);
-		p_pImpulseGen->m_Tacc = 0.0f;
-	}
-	LADSPA_Data l_result = p_pImpulseGen->m_accumulator[p_pImpulseGen->m_i_acc];
-	p_pImpulseGen->m_accumulator[p_pImpulseGen->m_i_acc] = 0.0f;
-	p_pImpulseGen->m_i_acc++;
-	p_pImpulseGen->m_i_acc%=N_WINDOW;
+    LADSPA_Data l_result;
+    if(N_ramp==1){
+        if(l_deltaT<=-1.0f){
+            p_pImpulseGen->m_Tacc += 1.0f;
+        }else if(l_deltaT<=0.0f){
+            ImpulseGenVC_impulse(p_pImpulseGen,-l_deltaT);
+            p_pImpulseGen->m_Tacc = 1.0f + l_deltaT;
+        }else{
+            ImpulseGenVC_impulse(p_pImpulseGen, 0.0f);
+            p_pImpulseGen->m_Tacc = 0.0f;
+        }
+        l_result = p_pImpulseGen->m_accumulator[p_pImpulseGen->m_i_acc];
+        p_pImpulseGen->m_accumulator[p_pImpulseGen->m_i_acc] = 0.0f;
+        p_pImpulseGen->m_i_acc++;
+        p_pImpulseGen->m_i_acc%=N_WINDOW;
+    }else{
+        if(p_pImpulseGen->m_Tacc>N_ramp*2){
+            l_result = 0.0f;
+        }else if(p_pImpulseGen->m_Tacc>N_ramp){
+            l_result = 2.0f - p_pImpulseGen->m_Tacc/N_ramp;
+        }else{
+            l_result = p_pImpulseGen->m_Tacc/N_ramp;
+        }
+        if(l_deltaT<=-1.0f){
+            p_pImpulseGen->m_Tacc += 1.0f;
+        }else if(l_deltaT<=0.0f){
+            p_pImpulseGen->m_Tacc = 1.0f + l_deltaT;
+        }else{
+            p_pImpulseGen->m_Tacc = 0.0f;
+        }
+    }
 	return l_result;
 }
 
 static void ImpulseGenVC_connect_port(
-	LADSPA_Handle p_pinstance,
+    LADSPA_Handle p_pinstance,
 	unsigned long p_port,
 	LADSPA_Data  *p_pdata )
 {
@@ -399,7 +504,10 @@ static void ImpulseGenVC_run(
 {
 	ImpulseGen *p_pImpulseGen = (ImpulseGen*)p_pinstance;
 
-	LADSPA_Data l_amp = *p_pImpulseGen->m_pport[PORT_AMPLITUDE];
+    LADSPA_Data l_impulse_amp = exp10f(*p_pImpulseGen->m_pport[PORT_IMPULSE_AMP]/20.0f);
+    LADSPA_Data l_noise_amp = exp10f(*p_pImpulseGen->m_pport[PORT_NOISE_AMP]/20.0f);
+    int l_N_ramp = (int)*p_pImpulseGen->m_pport[PORT_NRAMP];
+    LADSPA_Data l_pitch = *p_pImpulseGen->m_pport[PORT_PITCH];
 
 	long sample;
 	LADSPA_Data *l_psrc = p_pImpulseGen->m_pport[PORT_IN];
@@ -424,34 +532,60 @@ static void ImpulseGenVC_run(
                     LADSPA_Data temp = LPC_Filter_evaluate(&p_pImpulseGen->m_lpc, buff->m_x[s]);
                     buff->m_x[s] = LoPass_evaluate(&p_pImpulseGen->m_lp, temp);
                 }
+                ImpulseGen_SS(p_pImpulseGen, buff);
                 LADSPA_Data *l_cor = p_pImpulseGen->m_cor;
-                for(int lag=p_pImpulseGen->m_i_hi;lag<=p_pImpulseGen->m_N_window;lag++){
+                int lag=p_pImpulseGen->m_i_hi*p_pImpulseGen->m_SS_rate;
+                int lag_last=p_pImpulseGen->m_N_window*p_pImpulseGen->m_SS_rate + (p_pImpulseGen->m_SS_rate - 1);
+                int N_s = p_pImpulseGen->m_N_window*2*p_pImpulseGen->m_SS_rate;
+                for(;lag<=lag_last;lag++){
                     *l_cor = 0.0f;
-                    LADSPA_Data *x0 = buff->m_x;
-                    LADSPA_Data *x1 = &buff->m_x[lag];
-                    for(int s=lag;s<p_pImpulseGen->m_N_window*2;s++){
+                    LADSPA_Data *x0 = p_pImpulseGen->m_SS_buffer;
+                    LADSPA_Data *x1 = &p_pImpulseGen->m_SS_buffer[lag];
+                    for(int s=lag;s<N_s;s++){
                         *l_cor += *x0 * *x1;
                         x0++;
                         x1++;
                     }
                     l_cor++;
                 }
+                LADSPA_Data l_cor0=0.0f;
+                LADSPA_Data *x = p_pImpulseGen->m_SS_buffer;
+                for(int s=0;s<N_s;s++){
+                    l_cor0 += *x * *x;
+                    x++;
+                }
+                // find the average
+                LADSPA_Data l_avg=0.0;
+                l_cor = p_pImpulseGen->m_cor;
+                for(int i=0;i<p_pImpulseGen->m_N_cor*p_pImpulseGen->m_SS_rate;i++){
+                    l_avg += *l_cor;
+                }
+                l_avg /= p_pImpulseGen->m_N_cor*p_pImpulseGen->m_SS_rate;
+
                 // find the peek
                 l_cor = p_pImpulseGen->m_cor;
                 LADSPA_Data peek = *l_cor;
                 int i_peek = 0;
                 l_cor++;
-                for(int i=1;i<p_pImpulseGen->m_N_cor;i++){
+                for(int i=1;i<p_pImpulseGen->m_N_cor*p_pImpulseGen->m_SS_rate;i++){
                     if(*l_cor > peek){
                         peek = *l_cor;
                         i_peek = i;
                     }
                     l_cor++;
                 }
-                p_pImpulseGen->m_Tperiod = (LADSPA_Data)(p_pImpulseGen->m_i_hi+i_peek);
+                if((peek - l_avg)/l_cor0 > 0.3f){
+                    p_pImpulseGen->m_noise = 0;
+                    p_pImpulseGen->m_Tperiod = (LADSPA_Data)(p_pImpulseGen->m_i_hi+(LADSPA_Data)i_peek/p_pImpulseGen->m_SS_rate)*powf(2.0f,-l_pitch/12.0f);
+                }else{
+                    p_pImpulseGen->m_noise = 1;
+                }
             }
         }
-		*(l_pdst++) = ImpulseGenVC_evaluate(p_pImpulseGen)*l_amp;
+        if(!p_pImpulseGen->m_noise)
+            *(l_pdst++) = ImpulseGenVC_evaluate(p_pImpulseGen, l_N_ramp)*l_impulse_amp;
+        else
+            *(l_pdst++) = ((float)drand48()*2.0f-1.0f)*l_noise_amp;
 	}
 }
 
