@@ -337,8 +337,7 @@ void ImpulseGen_SS(ImpulseGen *p_pImpulseGen, InputBuffer *buff)
         }
         l_i_cbuff = 0;
         for(int s=0;s<buff->m_N;s++){
-            *(l_dst++) = *(l_src++);
-            for(int ss=1;ss<p_pImpulseGen->m_SS_rate;ss++){
+            for(int ss=0;ss<p_pImpulseGen->m_SS_rate;ss++){
                 int N_loop1 = N_WINDOW - l_i_cbuff;
                 int N_loop2 = N_WINDOW - N_loop1;
                 LADSPA_Data *l_impulse = p_pImpulseGen->m_impulse_data[N_SS*ss/p_pImpulseGen->m_SS_rate];
@@ -386,11 +385,12 @@ static LADSPA_Handle ImpulseGenVC_instantiate(
     }
     p_pImpulseGen->m_N_cor = p_pImpulseGen->m_N_window - p_pImpulseGen->m_i_hi + 1;
     p_pImpulseGen->m_noise = 0;
+    LADSPA_Data l_norm = 1.0f/hamming(N_WINDOW/2-1,N_WINDOW);
     for(int i_ss=0;i_ss<N_SS;i_ss++){
 		LADSPA_Data l_alpha = (LADSPA_Data)i_ss/N_SS;
 		for(int i_window=0;i_window<N_WINDOW;i_window++){
             LADSPA_Data l_x = (LADSPA_Data)(i_window-(N_WINDOW/2-1))-l_alpha;
-            p_pImpulseGen->m_impulse_data[i_ss][i_window] = sinc(M_PI*l_x)*hamming(i_window,N_WINDOW);
+            p_pImpulseGen->m_impulse_data[i_ss][i_window] = sinc(M_PI*l_x)*hamming(i_window,N_WINDOW)*l_norm;
 		}
 	}
 	for(int i_window=0;i_window<N_WINDOW;i_window++){
