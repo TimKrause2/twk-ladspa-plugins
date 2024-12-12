@@ -1,4 +1,4 @@
-# twk-ladspa-plugins
+# twk-ladspa-plugins ![GNU gpl3 logo!](https://www.gnu.org/graphics/gplv3-or-later.png)
 
 ## Plugins
 
