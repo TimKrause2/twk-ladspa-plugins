@@ -23,6 +23,3 @@ along with twk.so. If not, see
 Contact: tim.krause@twkrause.ca
 
 */
-#include <ladspa.h>
-
-extern LADSPA_Descriptor RBJHighpassQ12_Descriptor;
