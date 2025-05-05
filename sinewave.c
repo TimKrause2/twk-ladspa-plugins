@@ -68,6 +68,7 @@ typedef struct
     LADSPA_Data m_sample_rate;
 	LADSPA_Data *m_pport[PORT_NPORTS];
     LADSPA_Data  m_phase;
+    LADSPA_Data  m_freq_last;
 } SineWave;
 
 static LADSPA_Handle SineWave_instantiate(
@@ -79,6 +80,7 @@ static LADSPA_Handle SineWave_instantiate(
 		return NULL;
     p_pSineWave->m_sample_rate = (float)p_sample_rate;
     p_pSineWave->m_phase = 0.0f;
+    p_pSineWave->m_freq_last = 1.0f;
     return (LADSPA_Handle)p_pSineWave;
 }
 
@@ -97,21 +99,25 @@ static void SineWave_run(
 {
     SineWave *p_pSineWave = (SineWave*)p_pinstance;
 
-    LADSPA_Data l_frequency = *p_pSineWave->m_pport[PORT_FREQUENCY];
-    register LADSPA_Data l_amp = exp10f(*p_pSineWave->m_pport[PORT_AMPLITUDE]/20.0f);
-    register LADSPA_Data l_dphase = 2.0f*M_PIf*l_frequency/p_pSineWave->m_sample_rate;
+    LADSPA_Data l_f = p_pSineWave->m_freq_last;
+    LADSPA_Data l_df = (*p_pSineWave->m_pport[PORT_FREQUENCY] - l_f)/p_sample_count;
+    LADSPA_Data l_amp = exp10f(*p_pSineWave->m_pport[PORT_AMPLITUDE]/20.0f);
+    LADSPA_Data l_dphase;
 
     LADSPA_Data *l_pdst = p_pSineWave->m_pport[PORT_OUT];
     LADSPA_Data *l_pdst_end = l_pdst + p_sample_count;
-    register LADSPA_Data l_phase = p_pSineWave->m_phase;
+    LADSPA_Data l_phase = p_pSineWave->m_phase;
     for(;l_pdst!=l_pdst_end;l_pdst++){
         *l_pdst = sinf(l_phase)*l_amp;
+        l_dphase = 2.0f*M_PIf*l_f/p_pSineWave->m_sample_rate;
         l_phase+=l_dphase;
         if(l_phase >= 2.0f*M_PIf){
             l_phase -= 2.0f*M_PIf;
         }
+        l_f += l_df;
 	}
     p_pSineWave->m_phase = l_phase;
+    p_pSineWave->m_freq_last = *p_pSineWave->m_pport[PORT_FREQUENCY];
 }
 
 static void SineWave_cleanup(
