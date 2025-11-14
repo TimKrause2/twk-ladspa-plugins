@@ -58,25 +58,25 @@ To generate the assembly of the source files.
 
 	$ make butt_formulas
 	
-To run maxima and display the Butterworth stages coefficients.
+To run maxima and display the Butterworth stages coefficients formulas.
 
 	$ make ellip_formulas
 	
-To rum maxima and display the elliptical stages coefficients.
+To run maxima and display the elliptical stages coefficient formulas.
 
 ## Usage
 
 Copy `twk.so` to a directory referenced by the environment
 variable `LADSPA_PATH`. For example:
 ```
-mkdir /home/tim/ladspa
-cp twk.so /home/tim/ladspa
-export LADSPA_PATH=/usr/lib/ladspa:/home/tim/ladspa
+mkdir $HOME/ladspa
+cp twk.so $HOME/ladspa
+export LADSPA_PATH=/usr/lib/ladspa:$HOME/ladspa
 ```
 
 And then run your LADSPA program. To make the export permanent
-put	`export LADSPA_PATH=/usr/lib/ladspa:/home/tim/ladspa` 
-at the end of your .bashrc file.
+put	`export LADSPA_PATH=/usr/lib/ladspa:$HOME/ladspa` 
+at the end of your .profile file.
 
 ## Prerequists to compile
 
@@ -97,6 +97,9 @@ at the end of your .bashrc file.
 
     If you want to compute coefficients.
 
+- python with sympy, numpy, scipy, ipywidgets, matplotlib and jupyter
+
+	If you want to visually design the elliptic low pass filter prototype and see the formulas for the stage coefficients.
 
 
 
