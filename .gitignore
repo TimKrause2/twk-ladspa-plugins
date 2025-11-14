@@ -1,3 +1,6 @@
 *.o
 twk.so
 fad/libfad.a
+elliptic\ design.pkl
+.ipynb_checkpoints/
+

@@ -42,7 +42,7 @@ twk.so:twk.o $(PLUGIN_OBJECTS) fad/libfad.a
 	
 twk.o:twk.c $(PLUGIN_SOURCES)
 
-$(PLUGIN_OBJECTS):$(PLUGIN_SOURCES)
+$(PLUGIN_OBJECTS):$(PLUGIN_SOURCES) ellip_coeff.h
 
 %.s:%.c
 	gcc -S $(CFLAGS) $< -o $@
