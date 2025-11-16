@@ -58,11 +58,11 @@ To generate the assembly of the source files.
 
 	$ make butt_formulas
 	
-To run maxima and display the Butterworth stages coefficients formulas.
+To run maxima and display the Butterworth stages coefficients formulas. Requires maxima to be installed.
 
 	$ make ellip_formulas
 	
-To run maxima and display the elliptical stages coefficient formulas.
+To run maxima and display the elliptical stages coefficients formulas. Requires maxima to be installed.
 
 ## Usage
 
@@ -74,32 +74,37 @@ cp twk.so $HOME/ladspa
 export LADSPA_PATH=/usr/lib/ladspa:$HOME/ladspa
 ```
 
-And then run your LADSPA program. To make the export permanent
+And then run your LADSPA program.
+
+To make the export permanent
 put	`export LADSPA_PATH=/usr/lib/ladspa:$HOME/ladspa` 
 at the end of your .profile file.
 
 ## Prerequists to compile
 
-- GNU math library
+The following packages are necessary for compiling tye plugins. The install examples assume that you are running Ubuntu.
 
-    Uses GNU specific functions and constant
+- gcc & make `sudo apt install build-essential`
 
-- ladspa-sdk
+    Uses GNU specific functions and constants.
 
-    This is for ladspa.h
+- ladspa-sdk `sudo apt install ladspa-sdk`
 
-- make
-- maxima
+    This is for ladspa.h.
 
-    If you want to verify the equations.
+There are some optional packages depending on what you want to do.
+
+- maxima `sudo apt install maxima`
+
+    If you want to verify the coefficient equations for the Butterworth and elliptic filters.
     
-- scilab
+- scilab `sudo apt install scilab`
 
-    If you want to compute coefficients.
+    If you want to compute the low pass prototype filter coefficients and write the header file.
 
-- jupyterlab & python3-ipywidgets
+- jupyterlab & python3-ipywidgets `sudo apt install jupyterlab python3-ipywidgets`
 
-	If you want to visually design the elliptic low pass filter prototype and see the formulas for the stage coefficients.
+	If you want to interactively design the elliptic low pass filter prototype and see the formulas for the digital filter stage coefficients.
 
 
 
