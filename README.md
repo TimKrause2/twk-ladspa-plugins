@@ -84,7 +84,7 @@ at the end of your .profile file.
 
     Uses GNU specific functions and constant
 
-- ladspa-dev
+- ladspa-sdk
 
     This is for ladspa.h
 
@@ -97,7 +97,7 @@ at the end of your .profile file.
 
     If you want to compute coefficients.
 
-- python with sympy, numpy, scipy, ipywidgets, matplotlib and jupyter
+- jupyterlab & python3-ipywidgets
 
 	If you want to visually design the elliptic low pass filter prototype and see the formulas for the stage coefficients.
 
